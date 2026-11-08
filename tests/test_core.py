@@ -206,8 +206,15 @@ class ArgumentTest(unittest.TestCase):
 
     def test_rate_limit_errors_are_classified(self):
         from ytstudio.errors import explain
-        self.assertEqual(explain("ERROR: [youtube] x: Sign in to confirm you're not a bot").kind, "rate_limit")
-        self.assertEqual(explain("HTTP Error 429: Too Many Requests").kind, "rate_limit")
+        bot = explain("ERROR: [youtube] x: Sign in to confirm you're not a bot. Use --cookies-from-browser "
+                      "or --cookies for the authentication.")
+        self.assertEqual(bot.kind, "bot_check")
+        self.assertTrue(bot.throttled and bot.needs_browser)
+        too_many = explain("HTTP Error 429: Too Many Requests")
+        self.assertTrue(too_many.throttled and not too_many.needs_browser)
+        age = explain("Sign in to confirm your age. This video may be inappropriate for some users.")
+        self.assertEqual(age.kind, "login")
+        self.assertFalse(age.throttled)
         self.assertEqual(explain("HTTP Error 403: Forbidden").kind, "")
 
     def test_section_open_end(self):

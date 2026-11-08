@@ -346,6 +346,113 @@ class ToolsDialog(_Dialog):
                     self.app_status.setText("A program naprakész.")
 
 
+BROWSERS = [
+    ("firefox", "Firefox", ("APPDATA", r"Mozilla\Firefox\Profiles")),
+    ("chrome", "Google Chrome", ("LOCALAPPDATA", r"Google\Chrome\User Data")),
+    ("edge", "Microsoft Edge", ("LOCALAPPDATA", r"Microsoft\Edge\User Data")),
+    ("brave", "Brave", ("LOCALAPPDATA", r"BraveSoftware\Brave-Browser\User Data")),
+    ("opera", "Opera", ("APPDATA", r"Opera Software\Opera Stable")),
+    ("vivaldi", "Vivaldi", ("LOCALAPPDATA", r"Vivaldi\User Data")),
+    ("chromium", "Chromium", ("LOCALAPPDATA", r"Chromium\User Data")),
+]
+
+
+def installed_browsers() -> set[str]:
+    """A böngészőprofilok megléte alapján (rendszerleíró adatbázis nélkül)."""
+    import os
+    found = set()
+    for key, _name, (env, sub) in BROWSERS:
+        base = os.environ.get(env)
+        if base and (Path(base) / sub).is_dir():
+            found.add(key)
+    return found
+
+
+class BrowserCheckDialog(_Dialog):
+    """Vezetett ellenőrzés: a robotellenőrzést/bejelentkezést a felhasználó a saját
+    böngészőjében végzi el, a yt-dlp pedig annak munkamenetével próbálja újra.
+
+    A YouTube a letöltőprogramoknak nem küld kitölthető ellenőrzést, csak elutasítja a
+    kérést, ezért az ellenőrzés a programon belül nem jeleníthető meg.
+    """
+
+    def __init__(self, url: str, settings: Settings, parent=None):
+        super().__init__("Ellenőrzés a böngészőben", parent)
+        self.settings = settings
+        self.url = url
+        self.resize(600, 0)
+        intro = label("A YouTube ezt a kérést nem engedte át. A letöltőprogramok nem kapnak kitölthető "
+                      "ellenőrzést (például képes feladványt), csak elutasítást, ezért az ellenőrzés itt, "
+                      "a programban nem végezhető el. Igazold magad a saját böngésződben, és a program "
+                      "az ott létrejött bejelentkezéssel próbálja újra.", "muted", wrap=True)
+        self.root.addWidget(intro)
+
+        step1 = Card("1. Nyisd meg a videót a böngésződben", "external")
+        step1.body.addWidget(label("Ha a YouTube kéri, jelentkezz be a Google-fiókodba, vagy végezd el az "
+                                   "ellenőrzést, és győződj meg róla, hogy a videó elindul.", None, wrap=True))
+        open_button = button("Megnyitás a böngészőben", None, "external", "accent")
+        open_button.clicked.connect(self._open)
+        step1.body.addWidget(open_button, 0, Qt.AlignmentFlag.AlignLeft)
+        self.root.addWidget(step1)
+
+        step2 = Card("2. Melyik böngészőt használtad?", "settings")
+        installed = installed_browsers()
+        items = [(key, name + ("" if key in installed else " (nem található)")) for key, name, _ in BROWSERS]
+        self.browser_box = ChoiceBox(items)
+        preferred = settings.cookies_browser or next((k for k, _, _ in BROWSERS if k in installed), "firefox")
+        self.browser_box.set_value(preferred)
+        self.browser_box.currentIndexChanged.connect(self._update_hint)
+        step2.body.addWidget(self.browser_box, 0, Qt.AlignmentFlag.AlignLeft)
+        self.hint = label("", "caption", wrap=True)
+        step2.body.addWidget(self.hint)
+        self.keep = QCheckBox("A további letöltésekhez is ezt a böngészőt használja")
+        self.keep.setChecked(True)
+        step2.body.addWidget(self.keep)
+        self.root.addWidget(step2)
+
+        self.root.addWidget(label(
+            "Adatvédelem: a program a sütiket nem menti el és nem küldi tovább – a yt-dlp csak az adott "
+            "lekéréshez olvassa őket közvetlenül a böngésző profiljából. Ha nagyon sok videót töltesz le "
+            "bejelentkezett fiókkal, a YouTube a fiókot is korlátozhatja.", "faint", wrap=True))
+        row = QHBoxLayout()
+        row.addStretch(1)
+        cancel = button("Inkább várok")
+        cancel.setToolTip("A program a korlátozás lejárta után magától újrapróbálja")
+        cancel.clicked.connect(self.reject)
+        retry = button("3. Újrapróbálás", "primary", "retry")
+        retry.clicked.connect(self._accept)
+        row.addWidget(cancel)
+        row.addWidget(retry)
+        self.root.addLayout(row)
+        self._update_hint()
+
+    def browser(self) -> str:
+        return self.browser_box.value()
+
+    def _open(self) -> None:
+        from ..core import validate_url
+        try:
+            webbrowser.open(validate_url(self.url))
+        except ValueError:
+            pass
+
+    def _update_hint(self, *_):
+        if self.browser() == "firefox":
+            text = "Ajánlott: a Firefox sütijei akkor is olvashatók, ha a böngésző nyitva van."
+        else:
+            text = ("Az újrapróbálás előtt zárd be teljesen a böngészőt. Az újabb Chrome-alapú böngészők "
+                    "titkosítják a sütiket, ezért előfordulhat, hogy a program nem tudja olvasni őket – "
+                    "ilyenkor a Firefox a megbízható megoldás.")
+        self.hint.setText(text)
+
+    def _accept(self) -> None:
+        if self.keep.isChecked():
+            self.settings.cookies_browser = self.browser()
+            self.settings.save()
+        log(f"Ellenőrzés a böngészőben: {self.browser()} munkamenetének használata.")
+        self.accept()
+
+
 class LogWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)

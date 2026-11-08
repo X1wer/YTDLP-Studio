@@ -1,5 +1,21 @@
 # Változásnapló
 
+## 0.2.2 – 2026-11-08
+
+- **Ellenőrzés a böngészőben:** robotellenőrzésnél vagy bejelentkezést igénylő (pl. korhatáros)
+  videónál vezető ablak nyílik: megnyitja a videót a saját böngésződben, ahol bejelentkezhetsz
+  vagy elvégezheted az ellenőrzést, majd a program a kiválasztott böngésző munkamenetével
+  újrapróbálja. Felismeri a telepített böngészőket, és figyelmeztet a Chrome-alapú böngészők
+  sütititkosítására. Elérhető az elemzési hibánál, a letöltési kártya pajzs ikonjával és a
+  várakozási sávból. A sütiket a program nem menti el.
+- **Lenyitható letöltési kártyák:** figyelmeztetésnél és hibánál a kártya az állapotsorra vagy a
+  nyíl ikonra kattintva lenyílik, és olvasható a teljes magyarázat; innen a „Technikai részletek
+  megnyitása…” link a pontos yt-dlp-üzenetet is megmutatja. A figyelmeztetéses kész letöltés
+  ikonja sárga.
+- A hibák típus szerint különülnek el (robotellenőrzés, túl sok kérés, bejelentkezés szükséges,
+  böngészősütik nem olvashatók).
+- A várakozási sáv a keskeny letöltési panelen is olvasható (gombok a szöveg alatt).
+
 ## 0.2.1 – 2026-11-08
 
 ### Javítva

@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QGridLayout, QHBoxLayo
                                QStackedWidget, QVBoxLayout, QWidget, QCheckBox, QFrame)
 
 from . import icons, theme
-from .dialogs import DetailsDialog, LogWindow, SettingsDialog, ToolsDialog, open_path
+from .dialogs import BrowserCheckDialog, DetailsDialog, LogWindow, SettingsDialog, ToolsDialog, open_path
 from .logbus import log
 from .queue import DownloadManager, Job, QueuePanel
 from .widgets import (Banner, Card, CheckList, ChoiceBox, Collapsible, IconLabel, RangeSlider,
@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
         self.player = None
         self.log_window: LogWindow | None = None
         self._token = 0
+        self._session_cookies = settings.cookies_browser  # az utolsó elemzés böngészője
         self._cancel: threading.Event | None = None
         self._bridge = _Bridge()
         self._bridge.analysisDone.connect(self._analysis_done)
@@ -619,7 +620,8 @@ class MainWindow(QMainWindow):
             return
         self._analyze()
 
-    def _analyze(self, url: str | None = None, allow_playlist: bool = True) -> None:
+    def _analyze(self, url: str | None = None, allow_playlist: bool = True,
+                 cookies_override: str | None = None) -> None:
         raw = url or normalize_url(self.url_edit.text())
         if raw != self.url_edit.text():
             self.url_edit.setText(raw)
@@ -638,7 +640,8 @@ class MainWindow(QMainWindow):
         self._cancel = cancel
         self._busy(True)
         self._set_status("busy", "Videó adatainak lekérése… (néhány másodperc)")
-        cookies = self.settings.cookies_browser
+        cookies = self.settings.cookies_browser if cookies_override is None else cookies_override
+        self._session_cookies = cookies
         log(f"Elemzés indítása: {url}")
 
         def work():
@@ -696,14 +699,28 @@ class MainWindow(QMainWindow):
         if details:
             actions.append(("Részletek", lambda: DetailsDialog(friendly.title, friendly.message, details,
                                                                   parent=self).exec()))
-        if friendly.kind == "rate_limit":
+        if friendly.throttled:
             # A sorban várakozó letöltések se terheljék tovább a szolgáltatót.
-            self.manager.start_cooldown()
-            actions.append(("Böngészősütik…", self._show_settings))
+            self.manager.start_cooldown(reason=friendly.kind)
+        if friendly.needs_browser:
+            actions.insert(0, ("Ellenőrzés a böngészőben…", lambda: self._verify_in_browser(url)))
         elif "frissítsd" in friendly.message:
             actions.append(("yt-dlp frissítése", self._show_tools))
-        self.banner.show_message("warning" if friendly.kind == "rate_limit" else "error",
+        self.banner.show_message("warning" if friendly.throttled or friendly.needs_browser else "error",
                                  friendly.title, friendly.message, actions)
+
+    def _verify_in_browser(self, url: str, job: Job | None = None) -> None:
+        """Vezetett ellenőrzés: a felhasználó a saját böngészőjében igazolja magát."""
+        dialog = BrowserCheckDialog(url, self.settings, self)
+        if not dialog.exec():
+            return
+        browser = dialog.browser()
+        if job is not None:
+            self.manager.retry_with_browser(job, browser)
+            self._set_status("info", "Újrapróbálás a böngésző munkamenetével…")
+        else:
+            self.manager.resume_now()
+            self._analyze(url, cookies_override=browser)
 
     def _load_full_playlist(self) -> None:
         if self.info is None:
@@ -1197,7 +1214,7 @@ class MainWindow(QMainWindow):
             and self.embed_thumbnail.isEnabled(), embed_chapters=self.embed_chapters.isChecked(),
             start=start, end=end, accurate_cut=self.accurate.isChecked(),
             cut_method=self.cut_method.value() or "sections", title=info.title, duration=info.duration,
-            rate_limit=s.rate_limit, cookies_browser=s.cookies_browser,
+            rate_limit=s.rate_limit, cookies_browser=self._session_cookies,
             info_json=engine.reusable_info_json(info))
         if validate:
             opts.validate()
@@ -1236,7 +1253,7 @@ class MainWindow(QMainWindow):
                 embed_chapters=self.embed_chapters.isChecked(),
                 filename_prefix=f"{entry.index:0{width}d} - " if self.pl_numbering.isChecked() else "",
                 title=entry.title, duration=entry.duration, rate_limit=s.rate_limit,
-                cookies_browser=s.cookies_browser, polite=True)
+                cookies_browser=self._session_cookies, polite=True)
             opts.validate()
             result.append((opts, entry.title))
         return result
@@ -1328,6 +1345,8 @@ class MainWindow(QMainWindow):
             friendly = job.error or FriendlyError("Figyelmeztetések", "")
             DetailsDialog(friendly.title, friendly.message, job.details, job.warnings, self,
                           retry=(lambda: self.manager.retry(job)) if job.status == "error" else None).exec()
+        elif action == "verify":
+            self._verify_in_browser(job.options.url, job)
         elif action == "copy":
             QGuiApplication.clipboard().setText(job.options.url)
         elif action == "browser":
@@ -1347,6 +1366,7 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self.settings, self)
         if dialog.exec():
             theme.manager.apply(self.settings.theme)
+            self._session_cookies = self.settings.cookies_browser
             self.manager.max_parallel = self.settings.max_parallel
             self.manager.schedule()
             self.pl_sub_langs.setText(", ".join(self.settings.preferred_sub_langs))

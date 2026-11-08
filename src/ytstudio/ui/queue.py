@@ -38,6 +38,7 @@ class Job:
     error: FriendlyError | None = None
     details: str = ""
     immediate: bool = False
+    expanded: bool = False
     note: str = ""
     auto_retries: int = 0
     started: float = 0.0
@@ -105,6 +106,7 @@ class DownloadManager(QObject):
         self.max_parallel = max_parallel
         self.paused = False
         self.cooldown_until = 0.0
+        self.cooldown_reason = ""
         self._cooldown_timer = QTimer(self)
         self._cooldown_timer.setSingleShot(True)
         self._cooldown_timer.timeout.connect(self.resume_now)
@@ -144,12 +146,13 @@ class DownloadManager(QObject):
     def cooldown_left(self) -> float:
         return max(0.0, self.cooldown_until - time.time())
 
-    def start_cooldown(self, seconds: float = COOLDOWN_SECONDS) -> None:
+    def start_cooldown(self, seconds: float = COOLDOWN_SECONDS, reason: str = "rate_limit") -> None:
         """A szolgáltató korlátozta a kéréseket: a sor egy ideig nem indít új letöltést.
 
         Nem kerül meg semmilyen ellenőrzést; egyszerűen kivár, hogy ne terhelje tovább
         a szolgáltatót, és ne hosszabbítsa meg a korlátozást.
         """
+        self.cooldown_reason = reason
         self.cooldown_until = max(self.cooldown_until, time.time() + seconds)
         self._cooldown_timer.start(int((self.cooldown_until - time.time()) * 1000) + 500)
         log(f"A szolgáltató korlátozza a kéréseket: a sor {seconds / 60:.0f} percig szünetel, "
@@ -211,6 +214,7 @@ class DownloadManager(QObject):
             result: DownloadResult = payload
             job.files = result.files
             job.warnings = result.warnings
+            job.details = "\n".join(result.details)
             job.status = "done"
             job.progress = Progress(stage="done", text="Kész", percent=100)
             log(f"Kész: {job.title} → {result.main_file}")
@@ -225,8 +229,8 @@ class DownloadManager(QObject):
             log(f"HIBA ({job.title}): {error.friendly.title} – {error.friendly.message}")
             if error.details:
                 log(error.details)
-            if error.friendly.kind == "rate_limit":
-                self.start_cooldown()
+            if error.friendly.throttled:
+                self.start_cooldown(reason=error.friendly.kind)
                 if job.auto_retries < MAX_AUTO_RETRIES and job in self.jobs:
                     job.auto_retries += 1
                     job.status = "queued"
@@ -254,6 +258,23 @@ class DownloadManager(QObject):
             job.progress = Progress()
             self.jobChanged.emit(job)
             self.schedule()
+
+    def retry_with_browser(self, job: Job, browser: str) -> None:
+        """Újrapróbálás a felhasználó böngészőjének munkamenetével (sütik).
+
+        A felhasználó a saját böngészőjében jelentkezett be / igazolta magát; a yt-dlp
+        a letöltéskor olvassa a böngésző sütijeit (a program nem menti el őket).
+        Friss lekérés kell, ezért a mentett elemzés nem használható.
+        """
+        job.options = job.options.with_changes(cookies_browser=browser, info_json="")
+        job.auto_retries = 0
+        log(f"Újrapróbálás a(z) {browser} böngésző munkamenetével: {job.title}")
+        if job.status in ("error", "cancelled", "queued"):
+            job.status = "queued"
+            job.immediate = True
+            job.progress = Progress()
+            self.jobChanged.emit(job)
+        self.resume_now()
 
     def remove(self, job: Job) -> None:
         if job.status == "running":
@@ -330,14 +351,41 @@ class JobModel(QAbstractListModel):
         return None
 
 
-ACTIONS = {
-    "queued": [("remove", "close", "Eltávolítás a sorból")],
-    "running": [("cancel", "stop", "Megszakítás")],
-    "done": [("folder", "folder-open", "Mappa megnyitása"), ("open", "play", "Megnyitás")],
-    "error": [("remove", "close", "Eltávolítás"), ("details", "info", "Hiba részletei"),
-              ("retry", "retry", "Újrapróbálás")],
-    "cancelled": [("remove", "close", "Eltávolítás"), ("retry", "retry", "Újrapróbálás")],
-}
+def job_actions(job: "Job") -> list[tuple[str, str, str]]:
+    """A kártya jobb oldali ikongombjai az állapottól függően."""
+    expandable = job_expandable(job)
+    expand = [("expand", "chevron-up" if job.expanded else "chevron-down",
+               "Részletek elrejtése" if job.expanded else "Részletek megjelenítése")] if expandable else []
+    verify = ([("verify", "shield", "Ellenőrzés a böngészőben (bejelentkezés / robotellenőrzés)")]
+              if job.error is not None and job.error.needs_browser else [])
+    if job.status == "queued":
+        return expand + verify + [("remove", "close", "Eltávolítás a sorból")]
+    if job.status == "running":
+        return [("cancel", "stop", "Megszakítás")]
+    if job.status == "done":
+        return expand + [("folder", "folder-open", "Mappa megnyitása"), ("open", "play", "Megnyitás")]
+    if job.status == "error":
+        return expand + verify + [("remove", "close", "Eltávolítás"), ("retry", "retry", "Újrapróbálás")]
+    if job.status == "cancelled":
+        return [("remove", "close", "Eltávolítás"), ("retry", "retry", "Újrapróbálás")]
+    return []
+
+
+def job_expandable(job: "Job") -> bool:
+    return bool(job.warnings) or (job.status in ("error", "queued") and job.error is not None)
+
+
+def job_detail_text(job: "Job") -> str:
+    """A lenyitott kártyán olvasható, érthető magyarázat."""
+    parts = []
+    if job.error is not None and job.status in ("error", "queued"):
+        parts.append(f"{job.error.title}: {job.error.message}")
+        if job.error.needs_browser:
+            parts.append("Megoldás: a pajzs ikonnal („Ellenőrzés a böngészőben”) igazolhatod magad a saját "
+                         "böngésződben, utána a program azzal a munkamenettel próbálja újra.")
+    parts += [f"⚠ {w}" for w in job.warnings]
+    return "\n\n".join(parts)
+
 
 MODE_ICONS = {"video": "video", "audio": "audio", "subtitles": "subtitles"}
 
@@ -345,30 +393,80 @@ MODE_ICONS = {"video": "video", "audio": "audio", "subtitles": "subtitles"}
 class JobDelegate(QStyledItemDelegate):
     actionTriggered = Signal(str, object)
     HEIGHT = 86
+    PAD = 10
+    LINK = "Technikai részletek megnyitása…"
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._hover_action: tuple[int, str] | None = None
 
+    # -- elrendezés ----------------------------------------------------------- #
+    @staticmethod
+    def _card(rect: QRect) -> QRect:
+        return rect.adjusted(2, 4, -2, -4)
+
+    @staticmethod
+    def _text_left(card: QRect) -> int:
+        return card.left() + 12 + 36 + 12
+
+    @staticmethod
+    def _small_font(option) -> QFont:
+        small = QFont(option.font)
+        small.setPointSizeF(max(7.5, option.font.pointSizeF() - 1))
+        return small
+
+    def _detail_layout(self, option, card: QRect, job: Job) -> tuple[QRect, QRect, QRect] | None:
+        """(doboz, szöveg, link) téglalapjai a lenyitott részhez."""
+        if not (job.expanded and job_expandable(job)):
+            return None
+        left = self._text_left(card)
+        width = max(80, card.right() - 12 - left)
+        fm = QFontMetrics(self._small_font(option))
+        measured = fm.boundingRect(QRect(0, 0, width - 2 * self.PAD, 100000),
+                                   int(Qt.TextFlag.TextWordWrap), job_detail_text(job))
+        top = card.top() + self.HEIGHT - 26
+        text = QRect(left + self.PAD, top + self.PAD, width - 2 * self.PAD, measured.height())
+        link = QRect(text.left(), text.bottom() + 6, fm.horizontalAdvance(self.LINK) + 4, fm.height() + 2)
+        box = QRect(left, top, width, link.bottom() + self.PAD - top)
+        return box, text, link
+
     def sizeHint(self, option, index) -> QSize:
-        return QSize(option.rect.width(), self.HEIGHT)
+        job: Job | None = index.data(Qt.ItemDataRole.UserRole)
+        view = self.parent()
+        width = view.viewport().width() if view is not None else option.rect.width()
+        if job is None or not job.expanded:
+            return QSize(width, self.HEIGHT)
+        layout = self._detail_layout(option, self._card(QRect(0, 0, width, self.HEIGHT)), job)
+        if layout is None:
+            return QSize(width, self.HEIGHT)
+        return QSize(width, layout[0].bottom() + 4 + 12)
 
     def _buttons(self, rect: QRect, job: Job) -> list[tuple[str, str, str, QRect]]:
         result = []
         x = rect.right() - 12
-        for action, icon_name, tip in reversed(ACTIONS.get(job.status, [])):
+        for action, icon_name, tip in reversed(job_actions(job)):
             r = QRect(x - 30, rect.top() + 12, 30, 30)
             result.append((action, icon_name, tip, r))
             x -= 34
         return list(reversed(result))
 
+    def _status_rect(self, option, card: QRect, job: Job) -> QRect:
+        buttons = self._buttons(card, job)
+        left = self._text_left(card)
+        right = (buttons[0][3].left() - 8) if buttons else card.right() - 12
+        bold = QFont(option.font)
+        bold.setWeight(QFont.Weight.DemiBold)
+        top = card.top() + 10 + QFontMetrics(bold).height() + 2 + 3
+        return QRect(left, top, right - left, QFontMetrics(self._small_font(option)).height() + 2)
+
+    # -- rajzolás -------------------------------------------------------------- #
     def paint(self, painter: QPainter, option, index) -> None:
         job: Job = index.data(Qt.ItemDataRole.UserRole)
         if job is None:
             return
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        rect = option.rect.adjusted(2, 4, -2, -4)
+        rect = self._card(option.rect)
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
         painter.setPen(QPen(theme.qc("accent" if selected else "border"), 1))
@@ -378,13 +476,15 @@ class JobDelegate(QStyledItemDelegate):
         icon_rect = QRectF(rect.left() + 12, rect.top() + 12, 36, 36)
         role, bg = {"done": ("success", "success_soft"), "error": ("danger", "danger_soft"),
                     "cancelled": ("muted", "surface2")}.get(job.status, ("accent", "accent_soft"))
+        if job.status == "done" and job.warnings:
+            role, bg = "warning", "warning_soft"
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(theme.qc(bg))
         painter.drawRoundedRect(icon_rect, 9, 9)
         name = {"done": "check", "error": "alert"}.get(job.status, MODE_ICONS.get(job.options.mode, "video"))
         painter.drawPixmap(int(icon_rect.left() + 8), int(icon_rect.top() + 8), icons.pixmap(name, theme.c(role), 20))
         buttons = self._buttons(rect, job)
-        text_left = int(icon_rect.right()) + 12
+        text_left = self._text_left(rect)
         text_right = (buttons[0][3].left() - 8) if buttons else rect.right() - 12
         # cím
         font = QFont(option.font)
@@ -396,20 +496,22 @@ class JobDelegate(QStyledItemDelegate):
         painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                          fm.elidedText(job.title, Qt.TextElideMode.ElideRight, title_rect.width()))
         # állapotsor
-        small = QFont(option.font)
-        small.setPointSizeF(max(7.5, option.font.pointSizeF() - 1))
+        small = self._small_font(option)
         painter.setFont(small)
         sfm = QFontMetrics(small)
         status_role = {"error": "danger", "done": "success"}.get(job.status, "muted")
         if job.status == "done" and job.warnings:
             status_role = "warning"
         painter.setPen(theme.qc(status_role))
-        status_rect = QRect(text_left, title_rect.bottom() + 3, text_right - text_left, sfm.height() + 2)
+        status_rect = self._status_rect(option, rect, job)
+        status = job.status_line()
+        if job_expandable(job) and not job.expanded:
+            status += "  ·  részletek ▾"
         painter.drawText(status_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                         sfm.elidedText(job.status_line(), Qt.TextElideMode.ElideRight, status_rect.width()))
+                         sfm.elidedText(status, Qt.TextElideMode.ElideRight, status_rect.width()))
         # haladásjelző
-        if job.status in ("running", "queued"):
-            bar = QRectF(text_left, rect.bottom() - 16, rect.right() - 12 - text_left, 5)
+        if job.status in ("running", "queued") and not job.expanded:
+            bar = QRectF(text_left, rect.top() + self.HEIGHT - 8 - 16, rect.right() - 12 - text_left, 5)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(theme.qc("track"))
             painter.drawRoundedRect(bar, 2.5, 2.5)
@@ -428,6 +530,22 @@ class JobDelegate(QStyledItemDelegate):
                                   min(bar.right(), left + seg) - max(bar.left(), left), bar.height())
                     if clip.width() > 0:
                         painter.drawRoundedRect(clip, 2.5, 2.5)
+        # lenyitott magyarázat
+        layout = self._detail_layout(option, rect, job)
+        if layout is not None:
+            box, text, link = layout
+            kind = "danger" if job.status == "error" else "warning"
+            painter.setPen(QPen(theme.qc(kind), 1))
+            painter.setBrush(theme.qc(kind + "_soft"))
+            painter.drawRoundedRect(QRectF(box).adjusted(0.5, 0.5, -0.5, -0.5), 8, 8)
+            painter.setPen(theme.qc("text"))
+            painter.drawText(text, int(Qt.TextFlag.TextWordWrap) | int(Qt.AlignmentFlag.AlignLeft),
+                             job_detail_text(job))
+            link_font = QFont(small)
+            link_font.setUnderline(self._hover_action == (index.row(), "details"))
+            painter.setFont(link_font)
+            painter.setPen(theme.qc("accent"))
+            painter.drawText(link, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.LINK)
         # gombok
         for action, icon_name, _tip, r in buttons:
             hot = self._hover_action == (index.row(), action)
@@ -435,19 +553,35 @@ class JobDelegate(QStyledItemDelegate):
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.setBrush(theme.qc("border"))
                 painter.drawRoundedRect(QRectF(r), 7, 7)
-            color = theme.c("danger") if action == "cancel" else theme.c("accent") if action in ("open", "retry") else theme.c("muted")
+            color = (theme.c("danger") if action == "cancel" else
+                     theme.c("accent") if action in ("open", "retry", "verify") else theme.c("muted"))
             painter.drawPixmap(r.left() + 6, r.top() + 6, icons.pixmap(icon_name, color, 18))
         painter.restore()
 
+    # -- egér ------------------------------------------------------------------ #
     def _hit(self, option, index, pos: QPoint) -> str | None:
-        job: Job = index.data(Qt.ItemDataRole.UserRole)
+        job: Job | None = index.data(Qt.ItemDataRole.UserRole) if index.isValid() else None
         if job is None:
             return None
-        rect = option.rect.adjusted(2, 4, -2, -4)
+        rect = self._card(option.rect)
         for action, _icon, _tip, r in self._buttons(rect, job):
             if r.contains(pos):
                 return action
+        layout = self._detail_layout(option, rect, job)
+        if layout is not None and layout[2].contains(pos):
+            return "details"
+        if job_expandable(job) and self._status_rect(option, rect, job).contains(pos):
+            return "expand"
         return None
+
+    def toggle(self, index: QModelIndex) -> None:
+        job: Job | None = index.data(Qt.ItemDataRole.UserRole)
+        if job is None:
+            return
+        job.expanded = not job.expanded
+        self.sizeHintChanged.emit(index)
+        if self.parent():
+            self.parent().viewport().update()
 
     def editorEvent(self, event, model, option, index) -> bool:  # noqa: N802
         if event.type() == QEvent.Type.MouseMove:
@@ -456,10 +590,15 @@ class JobDelegate(QStyledItemDelegate):
             if key != self._hover_action:
                 self._hover_action = key
                 if self.parent():
+                    self.parent().viewport().setCursor(
+                        Qt.CursorShape.PointingHandCursor if action else Qt.CursorShape.ArrowCursor)
                     self.parent().viewport().update()
             return False
         if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
             action = self._hit(option, index, event.position().toPoint())
+            if action == "expand":
+                self.toggle(index)
+                return True
             if action:
                 self.actionTriggered.emit(action, index.data(Qt.ItemDataRole.UserRole))
                 return True
@@ -467,6 +606,9 @@ class JobDelegate(QStyledItemDelegate):
             job = index.data(Qt.ItemDataRole.UserRole)
             if job is not None and job.status == "done":
                 self.actionTriggered.emit("open", job)
+                return True
+            if job is not None and job_expandable(job):
+                self.toggle(index)
                 return True
         return False
 
@@ -477,17 +619,15 @@ class JobDelegate(QStyledItemDelegate):
             if job is None:
                 QToolTip.hideText()
                 return True
-            rect = option.rect.adjusted(2, 4, -2, -4)
+            rect = self._card(option.rect)
             for _action, _icon, tip, r in self._buttons(rect, job):
                 if r.contains(event.pos()):
                     QToolTip.showText(event.globalPos(), tip, view)
                     return True
-            text = f"{job.title}\n{job.status_line()}"
-            if job.error:
-                text += f"\n\n{job.error.message}"
-            for warning in job.warnings:
-                text += f"\n⚠ {warning}"
-            QToolTip.showText(event.globalPos(), text, view)
+            if job_expandable(job) and not job.expanded:
+                QToolTip.showText(event.globalPos(), "Kattints az állapotsorra a részletekért.", view)
+            else:
+                QToolTip.hideText()
             return True
         return super().helpEvent(event, view, option, index)
 
@@ -516,12 +656,14 @@ class QueuePanel(Card):
         self.view.setMouseTracking(True)
         self.view.viewport().setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         self.view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.view.setResizeMode(QListView.ResizeMode.Adjust)  # a lenyitott szöveg újratördelődik
+        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.view.customContextMenuRequested.connect(self._menu)
         self.delegate.actionTriggered.connect(self.actionRequested)
         # Várakozás a szolgáltató korlátozása után (robotellenőrzés / 429).
-        self.cooldown = Banner()
+        self.cooldown = Banner(actions_below=True)
         self.cooldown.close_button.hide()
         self.body.addWidget(self.cooldown)
         self.body.addWidget(self.view, 1)
@@ -568,12 +710,18 @@ class QueuePanel(Card):
             self._update()
             return
         minutes, seconds = divmod(int(left), 60)
-        text = ("A YouTube ideiglenesen korlátozza a kéréseket (robotellenőrzés vagy „túl sok kérés”). "
-                f"A sor {minutes}:{seconds:02d} múlva magától folytatódik; addig nem indul új letöltés, "
-                "hogy a korlátozás ne hosszabbodjon meg.")
+        text = (f"A sor {minutes}:{seconds:02d} múlva magától folytatódik. Addig nem indul új "
+                "letöltés, hogy a korlátozás ne hosszabbodjon meg.")
         if not self.cooldown.isVisible():
-            self.cooldown.show_message("warning", "Várakozás a YouTube-korlátozás miatt", text,
-                                       [("Folytatás most", self.manager.resume_now)])
+            self.cooldown.setToolTip("A YouTube rövid időn belül túl sok kérést kapott erről a hálózatról "
+                                     "(robotellenőrzés vagy „túl sok kérés”). Ez általában magától megszűnik.")
+            actions = [("Folytatás most", self.manager.resume_now)]
+            blocked = next((j for j in self.manager.jobs if j.error is not None and j.error.needs_browser
+                            and j.status in ("queued", "error")), None)
+            if blocked is not None:
+                actions.insert(0, ("Ellenőrzés a böngészőben…",
+                                   lambda: self.actionRequested.emit("verify", blocked)))
+            self.cooldown.show_message("warning", "A YouTube ideiglenesen korlátoz", text, actions)
         else:
             self.cooldown.message.setText(text)
         if not self._clock.isActive():

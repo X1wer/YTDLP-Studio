@@ -381,6 +381,7 @@ class Progress:
 class DownloadResult:
     files: list[Path] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    details: list[str] = field(default_factory=list)   # a figyelmeztetések technikai háttere
 
     @property
     def main_file(self) -> Path | None:
@@ -507,6 +508,7 @@ class DownloadTask:
             except Exception as exc:  # noqa: BLE001 - a videó ettől még használható
                 message = f"A feliratokat nem sikerült beágyazni, külön fájlként mentettem őket ({exc})."
                 result.warnings.append(message)
+                result.details.append(f"Feliratbeágyazás: {exc!r}")
                 self.on_log("FIGYELEM: " + message)
         self._check()
         self._emit(stage="finishing", text="Fájlok áthelyezése…", percent=None)
@@ -727,6 +729,7 @@ class DownloadTask:
                     detail = explain(joined).message if messages else ""
                 message = f"Nem sikerült letölteni: {names}. {detail}".strip()
                 result.warnings.append(message)
+                result.details.append(joined or f"A yt-dlp kilépési kódja: {code}")
                 self.on_log("FIGYELEM: " + message)
         return found
 

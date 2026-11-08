@@ -10,9 +10,18 @@ class FriendlyError:
     title: str
     message: str
     retryable: bool = True
-    # "rate_limit": a szolgáltató korlátozza a kéréseket (robotellenőrzés, 429) –
-    # ilyenkor a sor automatikusan szünetel, és később újrapróbálkozik.
+    # "rate_limit": túl sok kérés (429); "bot_check": robotellenőrzés – mindkettőnél a sor
+    # automatikusan szünetel, és később újrapróbálkozik. "login": bejelentkezés kell.
+    # "bot_check" és "login" esetén a felhasználó a saját böngészőjében igazolhatja magát.
     kind: str = ""
+
+    @property
+    def throttled(self) -> bool:
+        return self.kind in ("rate_limit", "bot_check")
+
+    @property
+    def needs_browser(self) -> bool:
+        return self.kind in ("bot_check", "login")
 
 
 _RULES: list[tuple[str, FriendlyError]] = [
@@ -34,15 +43,16 @@ _RULES: list[tuple[str, FriendlyError]] = [
         "A videó ebben az országban nem érhető el.", False)),
     (r"Sign in to confirm your age|age.?restricted|inappropriate for some users", FriendlyError(
         "Korhatáros videó",
-        "A videó megtekintéséhez bejelentkezés szükséges. A Beállításokban megadhatod, hogy "
-        "a program egy bejelentkezett böngésző sütijeit használja.")),
+        "A videó megtekintéséhez bejelentkezés szükséges. Jelentkezz be a böngésződben a "
+        "YouTube-ra, és engedd, hogy a program annak munkamenetét használja "
+        "(„Ellenőrzés a böngészőben” gomb).", kind="login")),
     (r"Sign in to confirm you.?re not a bot|confirm you are not a robot|LOGIN_REQUIRED", FriendlyError(
         "A YouTube ellenőrzést kér",
         "A YouTube rövid időn belül túl sok kérést kapott erről a hálózatról, ezért ideiglenesen "
         "robotnak nézte őket. Ez általában néhány perc–óra alatt magától megszűnik: a program "
         "a letöltési sort ilyenkor automatikusan szünetelteti, majd újrapróbálkozik. Ha tartósan "
         "fennáll, frissítsd a yt-dlp-t (Eszközök menü), vagy használd egy bejelentkezett böngésző "
-        "sütijeit (Beállítások).", kind="rate_limit")),
+        "sütijeit („Ellenőrzés a böngészőben” gomb).", kind="bot_check")),
     (r"members.?only|Join this channel", FriendlyError(
         "Csak csatornatagoknak",
         "Ez a videó csak a csatorna fizetős tagjai számára érhető el.", False)),
@@ -98,7 +108,8 @@ _RULES: list[tuple[str, FriendlyError]] = [
     (r"[Cc]ookies|could not find .* cookies database|Failed to decrypt", FriendlyError(
         "Böngészősütik nem olvashatók",
         "A kiválasztott böngésző sütijei nem olvashatók (a böngészőt be kell zárni, a Chrome újabb "
-        "verziói pedig titkosítják őket). Próbáld a Firefoxot, vagy kapcsold ki a sütiket.")),
+        "verziói pedig titkosítják őket). Próbáld a Firefoxot, vagy kapcsold ki a sütiket.",
+        kind="cookies")),
     (r"is_live|live event|live stream", FriendlyError(
         "Élő közvetítés",
         "Élő közvetítés letöltése a közvetítés végéig tarthat, és vágás nem alkalmazható rá.")),

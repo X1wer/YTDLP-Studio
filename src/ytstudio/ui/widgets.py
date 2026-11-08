@@ -917,7 +917,7 @@ class Banner(QFrame):
     ICONS = {"error": ("error", "danger"), "warning": ("alert", "warning"),
              "info": ("info", "accent"), "success": ("check-circle", "success")}
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, actions_below: bool = False):
         super().__init__(parent)
         self.setObjectName("banner")
         layout = QHBoxLayout(self)
@@ -934,7 +934,11 @@ class Banner(QFrame):
         layout.addLayout(texts, 1)
         self.actions = QHBoxLayout()
         self.actions.setSpacing(6)
-        layout.addLayout(self.actions)
+        if actions_below:  # keskeny panelben a gombok a szöveg alá kerülnek
+            texts.addSpacing(6)
+            texts.addLayout(self.actions)
+        else:
+            layout.addLayout(self.actions)
         self.close_button = button("", "ghost", "close", "muted", "Bezárás")
         self.close_button.setFixedSize(30, 30)
         self.close_button.clicked.connect(self.hide)

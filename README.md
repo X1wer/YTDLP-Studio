@@ -38,7 +38,7 @@ tölthetsz le videót, zenét vagy feliratot – akár csak egy kiválasztott r�
 
 ## Indítás (portable verzió)
 
-1. Töltsd le a `YTDLPStudio-0.2.1-Windows-x64-portable.zip` fájlt.
+1. Töltsd le a `YTDLPStudio-0.2.2-Windows-x64-portable.zip` fájlt.
 2. Csomagold ki egy **írható** mappába (pl. `Dokumentumok\YTDLPStudio` vagy pendrive).
    Ne a ZIP-ből közvetlenül indítsd.
 3. Indítsd el a `YTDLPStudio.exe` fájlt. (Az első indításkor a Windows SmartScreen
@@ -100,10 +100,15 @@ Sok egymás utáni elemzés vagy letöltés után ideiglenesen „robotellenőrz
 - **Automatikus várakozás:** korlátozáskor a letöltési sor 15 percig nem indít új letöltést
   (a panelen visszaszámláló és „Folytatás most” gomb látszik), utána magától folytatódik, és
   az érintett letöltést egyszer újrapróbálja.
-- **Ha tartósan fennáll:** frissítsd a yt-dlp-t (Eszközök és frissítés), vagy a
-  Beállításokban kapcsold be a böngészősütiket (egy bejelentkezett Firefoxból). A sütiket a
-  program nem menti el, csak letöltéskor olvassa. Figyelem: nagyon sok letöltés
-  bejelentkezett fiókkal a fiók korlátozásával is járhat.
+- **Ellenőrzés a böngészőben (ha nem akarsz várni, vagy tartósan fennáll):** a YouTube a
+  letöltőprogramoknak nem küld kitölthető ellenőrzést, csak elutasítja a kérést, ezért az
+  ellenőrzés a programban nem jeleníthető meg. Helyette a hibánál (vagy a letöltési kártya
+  pajzs ikonjával) megnyíló **„Ellenőrzés a böngészőben”** ablak végigvezet: 1) megnyitja a
+  videót a böngésződben, ahol bejelentkezhetsz / elvégezheted az ellenőrzést; 2) kiválasztod a
+  böngészőt (Firefox ajánlott – a Chrome-alapú böngészők sütijei titkosítás miatt gyakran nem
+  olvashatók); 3) a program a böngésző munkamenetével újrapróbálja. A sütiket a program nem
+  menti el, csak a lekéréshez olvassa. Nagyon sok letöltés bejelentkezett fiókkal a fiók
+  korlátozásával is járhat. Ha ez sem segít, frissítsd a yt-dlp-t (Eszközök és frissítés).
 - A program nem kerüli meg a robotellenőrzést, csak kivár és kevesebb kérést küld.
 
 ## Ismert korlátozások

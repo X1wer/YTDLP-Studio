@@ -1,5 +1,5 @@
 """YTDLP Studio — portable, magyar nyelvű videó- és hangletöltő a yt-dlp-hez."""
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 APP_NAME = "YTDLP Studio"
 APP_ID = "YTDLPStudio"
 # A YTDLP Studio saját GitHub-tárolója ("tulajdonos/név"). Amíg üres, az

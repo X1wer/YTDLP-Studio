@@ -1,5 +1,14 @@
 # YTDLP Studio – tesztjelentés
 
+## 0.2.2 kiegészítés (2026-11-08)
+
+| Ellenőrzés | Eredmény |
+|---|---|
+| Automatikus tesztek | ✅ **53/53** (3 új: lenyitható kártya valódi egérkattintással az állapotsorra, a „Technikai részletek” link a pontos yt-dlp-üzenetet adja át; pajzs gomb → böngészős újrapróbálás friss lekéréssel és a választott böngészővel; az „Ellenőrzés a böngészőben” ablak böngészőfüggő tanácsai és a beállítás mentése) |
+| Hibatípusok | ✅ robotellenőrzés / túl sok kérés / bejelentkezés / sütihiba külön ismerve fel |
+| Képernyőkép (világos és sötét) | ✅ lenyitott figyelmeztetés és hiba, várakozási sáv két gombbal, vezető ablak |
+| Valós robotellenőrzés + böngészős igazolás | ❌ nem tesztelt: a teszt idején nem volt aktív korlátozás, és valódi felhasználói fiókkal nem próbáltam |
+
 ## 0.2.1 kiegészítés (2026-11-08)
 
 Felhasználói hibajelentés: „AttributeError: 'NoneType' object has no attribute 'status'”

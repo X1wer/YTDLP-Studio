@@ -105,6 +105,18 @@ class EngineTest(unittest.TestCase):
             names = sorted(p.name for p in result.files)
             self.assertEqual([n[-7:] for n in names], [".de.mp3", ".es.mp3"])
             self.assertTrue(result.warnings and "xx" in result.warnings[0])
+            self.assertTrue(result.subtitles_rate_limited)
+            self.assertEqual([sub.language for sub in result.failed_subtitles], ["xx"])
+
+    def test_subtitles_only_rate_limit_is_classified(self):
+        with TemporaryDirectory() as d:
+            opts = DownloadOptions(url=URL, dest=d, mode="subtitles",
+                                   subtitles=[Subtitle("xx", "translated", "", "en")])
+            with self.assertRaises(engine.OperationError) as ctx:
+                engine.DownloadTask(opts, "k10").run()
+            self.assertEqual(ctx.exception.friendly.kind, "rate_limit")
+            self.assertTrue(ctx.exception.friendly.needs_browser)
+            self.assertIn("429", ctx.exception.details)
 
     def test_subtitles_only_vtt(self):
         with TemporaryDirectory() as d:

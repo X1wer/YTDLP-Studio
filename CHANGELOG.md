@@ -1,5 +1,20 @@
 # Változásnapló
 
+## 0.2.3 – 2026-11-08
+
+- **„Túl sok kérés” (429) esetén is elvégezhető az ellenőrzés a böngészőben.** Elemzésnél és
+  letöltésnél a hiba mellett, a letöltési kártyán (pajzs ikon) és a várakozási sávban is megjelenik
+  az „Ellenőrzés a böngészőben” lehetőség. Ha a Google „szokatlan forgalom” ellenőrzést mutat, azt
+  a saját böngésződben elvégezheted, és a program a böngésződ munkamenetével folytatja.
+- **Csak a hiányzó felirat újrapróbálása:** ha a videó letöltődött, de egy felirat (pl. YouTube
+  automatikus fordítás) 429-cel elmaradt, a kártya pajzs ikonja új feladatként csak a hiányzó
+  feliratot kéri le újra, bejelentkezett munkamenettel – a videót nem tölti le még egyszer.
+- A „Csak felirat” módban a 429-es elutasítás korlátozásként kerül besorolásra (várakozás,
+  böngészős ellenőrzés felkínálása).
+- A vezető ablak szövege az adott helyzethez igazodik (robotellenőrzés / túl sok kérés /
+  bejelentkezés / felirat), és jelzi, ha a YouTube a bejelentkezés után sem garantáltan adja ki
+  a feliratot.
+
 ## 0.2.2 – 2026-11-08
 
 - **Ellenőrzés a böngészőben:** robotellenőrzésnél vagy bejelentkezést igénylő (pl. korhatáros)

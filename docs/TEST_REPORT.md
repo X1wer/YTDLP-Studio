@@ -1,5 +1,13 @@
 # YTDLP Studio – tesztjelentés
 
+## 0.2.3 kiegészítés (2026-11-08)
+
+| Ellenőrzés | Eredmény |
+|---|---|
+| Automatikus tesztek | ✅ **56/56** (3 új: 429-es hibánál is felkínált böngészős ellenőrzés és a vezető ablak 429-es szövege; csak a hiányzó felirat újrapróbálása új feladatként, böngészővel, a videó újbóli letöltése nélkül; „Csak felirat” módban a 429 korlátozásként kerül besorolásra) |
+| Képernyőkép | ✅ kész, de felirathibás kártya pajzs ikonnal és megoldási javaslattal; „Felirat újrapróbálása” vezető ablak |
+| Bejelentkezett munkamenettel a YouTube kiadja-e a fordított feliratot | ❌ nem tesztelt (a felhasználó fiókjával nem próbáltam); a program ezt őszintén jelzi |
+
 ## 0.2.2 kiegészítés (2026-11-08)
 
 | Ellenőrzés | Eredmény |

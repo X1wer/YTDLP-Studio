@@ -38,7 +38,7 @@ tölthetsz le videót, zenét vagy feliratot – akár csak egy kiválasztott r�
 
 ## Indítás (portable verzió)
 
-1. Töltsd le a `YTDLPStudio-0.2.2-Windows-x64-portable.zip` fájlt.
+1. Töltsd le a `YTDLPStudio-0.2.3-Windows-x64-portable.zip` fájlt.
 2. Csomagold ki egy **írható** mappába (pl. `Dokumentumok\YTDLPStudio` vagy pendrive).
    Ne a ZIP-ből közvetlenül indítsd.
 3. Indítsd el a `YTDLPStudio.exe` fájlt. (Az első indításkor a Windows SmartScreen
@@ -80,7 +80,7 @@ Billentyűk: `Enter` – elemzés, `Ctrl+L` – linkmező, `Ctrl+Enter` – Let�
 |---|---|
 | *Hozzáférés megtagadva (403)* / *YouTube-ellenőrzés sikertelen* | **Eszközök és frissítés** → yt-dlp frissítése (szükség esetén Nightly csatorna). |
 | *A YouTube ellenőrzést kér* (robotellenőrzés) | A program magától kivár (lásd lent); ha tartósan fennáll, frissítsd a yt-dlp-t, vagy a Beállításokban válassz böngészősütiket (Firefox ajánlott). |
-| *Túl sok kérés (429)* automatikusan fordított feliratnál | A YouTube jelenleg gyakran elutasítja a fordított feliratok letöltését. Válaszd az eredeti nyelvű feliratot, vagy próbáld később. A videó ettől még letöltődik. |
+| *Túl sok kérés (429)* automatikusan fordított feliratnál | A videó letöltődik. A kártyán a pajzs ikonnal („Ellenőrzés a böngészőben”) bejelentkezve újrapróbálhatod csak a hiányzó feliratot. Ha így sem sikerül, a YouTube ezt a fordítást jelenleg nem adja ki – válaszd az eredeti nyelvű feliratot. |
 | *Korhatáros videó* | Bejelentkezett böngésző sütijei szükségesek (Beállítások → Böngészősütik). |
 | *A kért formátum nem érhető el* | Válassz „Legjobb elérhető” minőséget vagy másik formátumot. |
 | *Hiányzik: ffmpeg / yt-dlp* | Csomagold ki újra a teljes ZIP-et; a `bin` mappának a program mellett kell lennie. |
@@ -102,8 +102,8 @@ Sok egymás utáni elemzés vagy letöltés után ideiglenesen „robotellenőrz
   az érintett letöltést egyszer újrapróbálja.
 - **Ellenőrzés a böngészőben (ha nem akarsz várni, vagy tartósan fennáll):** a YouTube a
   letöltőprogramoknak nem küld kitölthető ellenőrzést, csak elutasítja a kérést, ezért az
-  ellenőrzés a programban nem jeleníthető meg. Helyette a hibánál (vagy a letöltési kártya
-  pajzs ikonjával) megnyíló **„Ellenőrzés a böngészőben”** ablak végigvezet: 1) megnyitja a
+  ellenőrzés a programban nem jeleníthető meg. Helyette a hibánál – robotellenőrzésnél, „túl sok kérés” (429) hibánál és bejelentkezést igénylő
+  videónál – (vagy a letöltési kártya pajzs ikonjával) megnyíló **„Ellenőrzés a böngészőben”** ablak végigvezet: 1) megnyitja a
   videót a böngésződben, ahol bejelentkezhetsz / elvégezheted az ellenőrzést; 2) kiválasztod a
   böngészőt (Firefox ajánlott – a Chrome-alapú böngészők sütijei titkosítás miatt gyakran nem
   olvashatók); 3) a program a böngésző munkamenetével újrapróbálja. A sütiket a program nem

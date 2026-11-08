@@ -40,6 +40,8 @@ class Job:
     immediate: bool = False
     expanded: bool = False
     note: str = ""
+    failed_subs: list = field(default_factory=list)   # sikertelen feliratok (Subtitle)
+    subs_rate_limited: bool = False
     auto_retries: int = 0
     started: float = 0.0
     finished: float = 0.0
@@ -214,6 +216,8 @@ class DownloadManager(QObject):
             result: DownloadResult = payload
             job.files = result.files
             job.warnings = result.warnings
+            job.failed_subs = list(result.failed_subtitles)
+            job.subs_rate_limited = result.subtitles_rate_limited
             job.details = "\n".join(result.details)
             job.status = "done"
             job.progress = Progress(stage="done", text="Kész", percent=100)
@@ -275,6 +279,17 @@ class DownloadManager(QObject):
             job.progress = Progress()
             self.jobChanged.emit(job)
         self.resume_now()
+
+    def retry_subtitles_with_browser(self, job: Job, browser: str) -> Job:
+        """Csak a sikertelen feliratok újrapróbálása, a böngésző munkamenetével (új feladatként)."""
+        options = job.options.with_changes(
+            mode="subtitles", subtitles=list(job.failed_subs), sub_langs=[], cookies_browser=browser,
+            info_json="", embed_subtitles=False, audio_selectors=[], audio_languages=[])
+        job.note = "a hiányzó felirat újrapróbálása külön feladatként"
+        self.jobChanged.emit(job)
+        log(f"Felirat újrapróbálása a(z) {browser} böngésző munkamenetével: {job.title}")
+        self.resume_now()
+        return self.add(options, f"{job.title} – felirat", immediate=True)
 
     def remove(self, job: Job) -> None:
         if job.status == "running":
@@ -363,7 +378,9 @@ def job_actions(job: "Job") -> list[tuple[str, str, str]]:
     if job.status == "running":
         return [("cancel", "stop", "Megszakítás")]
     if job.status == "done":
-        return expand + [("folder", "folder-open", "Mappa megnyitása"), ("open", "play", "Megnyitás")]
+        subs = ([("verify", "shield", "A hiányzó felirat újrapróbálása a böngésződ bejelentkezésével "
+                  "(a videót nem tölti le újra)")] if job.failed_subs else [])
+        return expand + subs + [("folder", "folder-open", "Mappa megnyitása"), ("open", "play", "Megnyitás")]
     if job.status == "error":
         return expand + verify + [("remove", "close", "Eltávolítás"), ("retry", "retry", "Újrapróbálás")]
     if job.status == "cancelled":
@@ -384,6 +401,10 @@ def job_detail_text(job: "Job") -> str:
             parts.append("Megoldás: a pajzs ikonnal („Ellenőrzés a böngészőben”) igazolhatod magad a saját "
                          "böngésződben, utána a program azzal a munkamenettel próbálja újra.")
     parts += [f"⚠ {w}" for w in job.warnings]
+    if job.status == "done" and job.failed_subs:
+        parts.append("Megoldás: a pajzs ikonnal („Ellenőrzés a böngészőben”) bejelentkezve újrapróbálhatod "
+                     "csak a hiányzó feliratot – a videót nem tölti le újra. Ha így sem sikerül, a YouTube "
+                     "ezt a feliratot jelenleg nem adja ki; az eredeti nyelvű felirat működik.")
     return "\n\n".join(parts)
 
 

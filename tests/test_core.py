@@ -211,7 +211,7 @@ class ArgumentTest(unittest.TestCase):
         self.assertEqual(bot.kind, "bot_check")
         self.assertTrue(bot.throttled and bot.needs_browser)
         too_many = explain("HTTP Error 429: Too Many Requests")
-        self.assertTrue(too_many.throttled and not too_many.needs_browser)
+        self.assertTrue(too_many.throttled and too_many.needs_browser)  # a böngészős ellenőrzés itt is felkínálva
         age = explain("Sign in to confirm your age. This video may be inappropriate for some users.")
         self.assertEqual(age.kind, "login")
         self.assertFalse(age.throttled)

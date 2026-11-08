@@ -376,20 +376,34 @@ class BrowserCheckDialog(_Dialog):
     kérést, ezért az ellenőrzés a programon belül nem jeleníthető meg.
     """
 
-    def __init__(self, url: str, settings: Settings, parent=None):
+    INTROS = {
+        "bot_check": "A YouTube robotellenőrzést kért, és ezt a kérést nem engedte át.",
+        "rate_limit": "A YouTube „túl sok kérés” (429) választ adott: erről a hálózatról rövid idő alatt sok "
+                      "kérés érkezett.",
+        "login": "A videó megtekintéséhez bejelentkezés szükséges (pl. korhatáros tartalom).",
+        "subtitles": "A YouTube nem engedte letölteni a feliratot (429 – túl sok kérés). A videó már "
+                     "letöltődött; most csak a hiányzó feliratot próbálja újra a program, a videót nem "
+                     "tölti le még egyszer. Bejelentkezett felhasználónak a YouTube gyakran kiadja – de nem "
+                     "mindig: ha így sem sikerül, ezt a feliratot jelenleg nem adja ki, és az eredeti nyelvű "
+                     "felirat a megoldás.",
+    }
+
+    def __init__(self, url: str, settings: Settings, parent=None, reason: str = "bot_check"):
         super().__init__("Ellenőrzés a böngészőben", parent)
         self.settings = settings
         self.url = url
+        self.reason = reason if reason in self.INTROS else "bot_check"
         self.resize(600, 0)
-        intro = label("A YouTube ezt a kérést nem engedte át. A letöltőprogramok nem kapnak kitölthető "
-                      "ellenőrzést (például képes feladványt), csak elutasítást, ezért az ellenőrzés itt, "
-                      "a programban nem végezhető el. Igazold magad a saját böngésződben, és a program "
-                      "az ott létrejött bejelentkezéssel próbálja újra.", "muted", wrap=True)
+        intro = label(self.INTROS[self.reason] + " A letöltőprogramok nem kapnak kitölthető ellenőrzést "
+                      "(például képes feladványt), csak elutasítást, ezért ez itt, a programban nem végezhető "
+                      "el. Végezd el a saját böngésződben, és a program az ott létrejött bejelentkezéssel "
+                      "próbálja újra.", "muted", wrap=True)
         self.root.addWidget(intro)
 
         step1 = Card("1. Nyisd meg a videót a böngésződben", "external")
-        step1.body.addWidget(label("Ha a YouTube kéri, jelentkezz be a Google-fiókodba, vagy végezd el az "
-                                   "ellenőrzést, és győződj meg róla, hogy a videó elindul.", None, wrap=True))
+        step1.body.addWidget(label("Ha a YouTube vagy a Google ellenőrzést kér (például „szokatlan forgalom” "
+                                   "oldal vagy képes feladvány), végezd el. Jelentkezz be a YouTube-fiókodba, "
+                                   "és győződj meg róla, hogy a videó elindul.", None, wrap=True))
         open_button = button("Megnyitás a böngészőben", None, "external", "accent")
         open_button.clicked.connect(self._open)
         step1.body.addWidget(open_button, 0, Qt.AlignmentFlag.AlignLeft)
@@ -419,7 +433,8 @@ class BrowserCheckDialog(_Dialog):
         cancel = button("Inkább várok")
         cancel.setToolTip("A program a korlátozás lejárta után magától újrapróbálja")
         cancel.clicked.connect(self.reject)
-        retry = button("3. Újrapróbálás", "primary", "retry")
+        retry = button("3. Felirat újrapróbálása" if self.reason == "subtitles" else "3. Újrapróbálás",
+                       "primary", "retry")
         retry.clicked.connect(self._accept)
         row.addWidget(cancel)
         row.addWidget(retry)

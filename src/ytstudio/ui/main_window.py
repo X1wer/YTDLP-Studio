@@ -703,19 +703,28 @@ class MainWindow(QMainWindow):
             # A sorban várakozó letöltések se terheljék tovább a szolgáltatót.
             self.manager.start_cooldown(reason=friendly.kind)
         if friendly.needs_browser:
-            actions.insert(0, ("Ellenőrzés a böngészőben…", lambda: self._verify_in_browser(url)))
+            actions.insert(0, ("Ellenőrzés a böngészőben…",
+                               lambda: self._verify_in_browser(url, reason=friendly.kind)))
         elif "frissítsd" in friendly.message:
             actions.append(("yt-dlp frissítése", self._show_tools))
         self.banner.show_message("warning" if friendly.throttled or friendly.needs_browser else "error",
                                  friendly.title, friendly.message, actions)
 
-    def _verify_in_browser(self, url: str, job: Job | None = None) -> None:
+    def _verify_in_browser(self, url: str, job: Job | None = None, reason: str = "bot_check") -> None:
         """Vezetett ellenőrzés: a felhasználó a saját böngészőjében igazolja magát."""
-        dialog = BrowserCheckDialog(url, self.settings, self)
+        subtitles_only = job is not None and job.status == "done" and bool(job.failed_subs)
+        if subtitles_only:
+            reason = "subtitles"
+        elif job is not None and job.error is not None:
+            reason = job.error.kind or reason
+        dialog = BrowserCheckDialog(url, self.settings, self, reason=reason)
         if not dialog.exec():
             return
         browser = dialog.browser()
-        if job is not None:
+        if subtitles_only:
+            self.manager.retry_subtitles_with_browser(job, browser)
+            self._set_status("info", "A hiányzó felirat újrapróbálása a böngésző munkamenetével…")
+        elif job is not None:
             self.manager.retry_with_browser(job, browser)
             self._set_status("info", "Újrapróbálás a böngésző munkamenetével…")
         else:

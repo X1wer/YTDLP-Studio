@@ -24,7 +24,29 @@ Tesztanyag: *Big Buck Bunny* (Blender Foundation, CC BY 3.0), *Me at the zoo* (1
 nyilvános tesztanyag). A többnyelvű hangsáv ellenőrzéséhez egy 3 másodperces, utána azonnal
 törölt részlet készült egy többnyelvű szinkronnal rendelkező nyilvános videóból.
 
-LIVE_RESULTS_PLACEHOLDER
+Három futás történt ugyanazon a napon: **A** – a javítások előtt (16:xx), **B** – a végleges kóddal
+(19:xx), **C** – külön a megszakítás ellenőrzése a javítás után. A B futás idejére a YouTube a
+napi sok tesztkérés miatt ideiglenes robotellenőrzést kért ettől az IP-címtől; ezeket a
+lépéseket a program helyesen, magyarul jelezte („A YouTube ideiglenesen robotnak nézte a
+kéréseket…”), de a letöltés nem futott le.
+
+| Ellenőrzés | A | B | Eredmény / mért érték |
+|---|---|---|---|
+| Elemzés (Big Buck Bunny) | ✅ | ✅ | 635 s, max. 2160p60 |
+| Videórészlet MP4 360p, 01:00–01:10 | ✅ | ✅ | 10,03 s, 360p videósáv (+ beágyazott borítókép), 464 KB |
+| WebM formátum érvényesül, 240p | ✅ | ✅ | `.webm`, AV1 + Opus |
+| Csak hang MP3, 30 s részlet | ✅ | ✅ | 30,0 s MP3 |
+| Feliratok beágyazva MKV-ba (en + de) | ✅ | ⚠️ robotellenőrzés | feliratsávok: `deu`, `eng` |
+| Vágott részlet + felirat igazítása (00:05–00:12) | ✅ | ⚠️ robotellenőrzés | külön SRT, első felirat 00:00:00,318-nál |
+| Csak felirat: YouTube automatikus magyar fordítás | ⚠️ 429 | ⚠️ 429 | a YouTube elutasítja; érthető figyelmeztetés |
+| Több hangsáv egy MKV-ban (de + es, 3 s) | ✅ | ⚠️ robotellenőrzés | hangsávok: `deu`, `spa` (a fájl utána törölve) |
+| Csatornalink → Videók lista | ✅ | ✅ | `@jawed` → „Videos” lista |
+| Megszakítás 4K letöltés közben | ❌ → javítva, **C: ✅** | ⚠️ robotellenőrzés | C: azonnali leállás, 0 árva yt-dlp/FFmpeg, ideiglenes mappa törölve |
+| Ékezetes mentési mappa | ✅ | ✅ | `Ékezetes ő ű mappa\Me at the zoo [jNQXAC9IVRw].m4a` |
+| yt-dlp frissítés élesben (ideiglenes mappába) | ✅ | ✅ | GitHub-letöltés, SHA-256 OK, `--version` fut, előző verzió mentve |
+
+Az **A** futás hibája (megszakítás után túl korán futó takarítás, a leállított FFmpeg még fogta
+a fájlt) javítva lett: a takarítás rövid ideig újrapróbálkozik, és háttérszálon fut.
 
 ## 3. Valódi felületen végzett munkafolyamat (élő hálózattal) – ✅
 

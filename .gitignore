@@ -1,15 +1,22 @@
+# Python
 __pycache__/
 *.pyc
-build/
-dist/
-*.log
-settings.json
-bin/*.exe
-bin/*.dll
-*.part
-*.ytdl
 
+# Build kimenet és gyorsítótár
+dist/
+.build-cache/
 .build-venv/
 
-.build-cache/
+# Futásidejű adatok (beállítások, napló, cache) és csomagolt eszközök
 data/
+settings.json
+*.log
+bin/*.exe
+bin/*.dll
+bin/*.bak
+bin/*.version
+
+# Félbehagyott letöltések
+*.part
+*.ytdl
+.ytdlp-studio-temp/

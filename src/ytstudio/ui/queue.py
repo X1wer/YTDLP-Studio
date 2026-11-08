@@ -186,7 +186,7 @@ class DownloadManager(QObject):
             if error.details:
                 log(error.details)
         if job not in self.jobs:
-            cleanup_workdir(Path(job.options.dest), job.key)
+            self._cleanup_later(job)
         self.jobChanged.emit(job)
         self.jobFinished.emit(job)
         self.schedule()
@@ -215,7 +215,12 @@ class DownloadManager(QObject):
             self.jobs.remove(job)
             self.jobRemoved.emit(job)
         if job.status != "running":
-            cleanup_workdir(Path(job.options.dest), job.key)
+            self._cleanup_later(job)
+
+    @staticmethod
+    def _cleanup_later(job: Job) -> None:
+        threading.Thread(target=cleanup_workdir, args=(Path(job.options.dest), job.key),
+                         name=f"cleanup-{job.id}", daemon=True).start()
 
     def clear_finished(self) -> None:
         for job in [j for j in self.jobs if j.status in ("done", "cancelled", "error")]:

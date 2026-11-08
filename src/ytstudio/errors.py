@@ -45,7 +45,9 @@ _RULES: list[tuple[str, FriendlyError]] = [
         "Ez egy későbbi premier vagy élő közvetítés. A kezdés után próbáld újra.")),
     (r"HTTP Error 429|Too Many Requests", FriendlyError(
         "Túl sok kérés (429)",
-        "A szolgáltató átmenetileg korlátozza a letöltéseket. Várj néhány percet, majd próbáld újra.")),
+        "A szolgáltató átmenetileg korlátozza a kéréseket. Várj néhány percet, majd próbáld újra. "
+        "A YouTube automatikusan fordított feliratainál ez gyakori: ilyenkor válaszd az eredeti nyelvű "
+        "(vagy automatikus) feliratot.")),
     (r"HTTP Error 403|Forbidden", FriendlyError(
         "Hozzáférés megtagadva (403)",
         "A szerver elutasította a letöltést. Ez gyakran a yt-dlp elavultságát jelzi: frissítsd az "

@@ -409,6 +409,9 @@ class MainWindow(QMainWindow):
                                            ("dubbed-auto", "AI-szinkron"), ("descriptive", "Narrált")])
         self.audio_list.selectionChanged.connect(self._options_changed)
         self.audio_card.body.addWidget(self.audio_list, 1)
+        self.audio_single = label("", "muted", wrap=True)
+        self.audio_single.hide()
+        self.audio_card.body.addWidget(self.audio_single)
         self.audio_note = label("", "caption", wrap=True)
         self.audio_card.body.addWidget(self.audio_note)
         self.audio_card.setFixedHeight(380)
@@ -424,7 +427,13 @@ class MainWindow(QMainWindow):
         star.clicked.connect(self._select_preferred_subs)
         self.sub_list.footer.insertWidget(2, star)
         self.subs_card.body.addWidget(self.sub_list, 1)
-        sub_opts = QHBoxLayout()
+        self.subs_none = label("Ehhez a videóhoz nem érhető el felirat.", "muted", wrap=True)
+        self.subs_none.hide()
+        self.subs_card.body.addWidget(self.subs_none)
+        self.sub_options = QWidget()
+        self.sub_options.setObjectName("transparent")
+        sub_opts = QHBoxLayout(self.sub_options)
+        sub_opts.setContentsMargins(0, 0, 0, 0)
         sub_opts.setSpacing(8)
         sub_opts.addWidget(label("Formátum", "muted"))
         self.sub_format = SegmentedControl([("srt", "SRT"), ("vtt", "VTT")])
@@ -436,7 +445,7 @@ class MainWindow(QMainWindow):
                                    "Ha ez nem sikerül, külön fájlként maradnak meg.")
         sub_opts.addWidget(self.embed_subs)
         sub_opts.addStretch(1)
-        self.subs_card.body.addLayout(sub_opts)
+        self.subs_card.body.addWidget(self.sub_options)
         self.subs_card.setFixedHeight(380)
         row.addWidget(self.subs_card, 1)
         return row_widget
@@ -772,8 +781,11 @@ class MainWindow(QMainWindow):
                                 "search": t.language + " " + (t.note or "")})
         self.audio_list.set_items(audio_items)
         multi = len(info.audio_tracks) > 1
-        self.audio_list.setEnabled(multi)
-        self.audio_list.set_empty_text("Ehhez a videóhoz nincs külön választható hangsáv.")
+        self.audio_list.setVisible(multi)
+        self.audio_single.setText(
+            "Ennek a videónak egy hangsávja van, ez kerül a letöltésbe." if info.audio_tracks
+            else "A forrás nem ad külön hangsáv-információt; az alapértelmezett hang töltődik le.")
+        self.audio_single.setVisible(not multi)
         self.audio_count.setText(f"{len(info.audio_tracks)}" if multi else "")
         self.audio_count.setVisible(multi)
         # feliratok
@@ -791,9 +803,18 @@ class MainWindow(QMainWindow):
                               "kind": s.kind, "star": matches_preference(lang, self.settings.preferred_sub_langs),
                               "search": f"{s.language} {s.name}"})
         self.sub_list.set_items(sub_items)
-        self.sub_list.set_empty_text("Ehhez a videóhoz nem érhető el felirat.")
+        self.sub_list.setVisible(bool(subs))
+        self.subs_none.setVisible(not subs)
+        self.sub_options.setVisible(bool(subs))
         self.subs_count.setText(str(len(subs)) if subs else "")
         self.subs_count.setVisible(bool(subs))
+        tall = multi or bool(subs)
+        for card in (self.audio_card, self.subs_card):
+            if tall:
+                card.setFixedHeight(380)
+            else:
+                card.setMinimumHeight(0)
+                card.setMaximumHeight(16777215)
         self.mode.set_option_enabled("subtitles", bool(subs), "" if subs else "Ehhez a videóhoz nincs felirat.")
         if not subs and self.mode.value() == "subtitles":
             self.mode.set_value("video")

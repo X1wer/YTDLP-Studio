@@ -1,25 +1,51 @@
-YTDLP Studio external command-line programs (not included in this SOURCE zip):
+YTDLP Studio – harmadik féltől származó összetevők / Third-party components
+==========================================================================
 
-yt-dlp: https://github.com/yt-dlp/yt-dlp
-  Unlicense (some bundled dependencies may have their own licenses).
-  Windows standalone exe includes yt-dlp-ejs.
+A YTDLP Studio saját forráskódja MIT-licencű (YTDLPStudio-MIT.txt).
+A portable csomag az alábbi, külön licencelt összetevőket tartalmazza.
+Mindegyik változatlan formában, a hivatalos kiadásból kerül a csomagba.
 
-FFmpeg, FFprobe: https://ffmpeg.org/
-  Windows binaries from BtbN: https://github.com/BtbN/FFmpeg-Builds
-  GPL-licensed distribution (may include LGPL and other licenses).
-  Review FFmpeg version/build configuration and required source availability
-  when publicly redistributing the binary. Prefer retaining included licenses.
+1. yt-dlp (bin\yt-dlp.exe)
+   https://github.com/yt-dlp/yt-dlp
+   Licenc: The Unlicense (közkincs) – yt-dlp-Unlicense.txt
+   A Windows-os önálló EXE beépített részeként tartalmazza a yt-dlp-ejs
+   komponenst és saját Python-futtatókörnyezetét; ezek licencei a yt-dlp
+   kiadási oldalán olvashatók.
 
-Deno: https://github.com/denoland/deno
-  MIT; contains additional third-party licenses.
+2. FFmpeg és FFprobe (bin\ffmpeg.exe, bin\ffprobe.exe)
+   https://ffmpeg.org/  –  Windows-build: https://github.com/BtbN/FFmpeg-Builds
+   Licenc: GNU GPL v3 (a „win64-gpl” build GPL-es összetevőket is tartalmaz,
+   pl. x264, x265) – gpl-3.0.txt, valamint a terjesztő eredeti licencfájlja:
+   ffmpeg-distribution-LICENSE.txt.
+   Forráskód: az FFmpeg forrása a https://ffmpeg.org/download.html oldalon, a
+   build-szkriptek és a pontos konfiguráció a BtbN/FFmpeg-Builds tárolóban
+   érhetők el (a pontos kiadási címke a VERSIONS.txt fájlban). Az FFmpeg külön
+   futtatható programként fut; a YTDLP Studio nem linkeli.
 
-PyInstaller: https://pyinstaller.org/
-  GPL-2.0-or-later with special exception for bundling applications.
+3. Deno (bin\deno.exe) – JavaScript-futtató a YouTube-ellenőrzésekhez
+   https://github.com/denoland/deno
+   Licenc: MIT – deno-MIT.txt (a Deno további beépített összetevőinek
+   licencei a Deno kiadásában szerepelnek).
 
-Pillow: https://python-pillow.github.io/Pillow/
-  HPND license.
+4. Qt 6 és PySide6 / Shiboken6 (_internal\PySide6\…)
+   https://www.qt.io/  –  https://doc.qt.io/qtforpython/
+   Licenc: GNU LGPL v3 – lgpl-3.0.txt (és gpl-3.0.txt, amelyre az LGPL épül).
+   A Qt-könyvtárak külön DLL-fájlokként vannak a csomagban, így
+   felhasználó által cserélhetők. A Qt forráskódja: https://download.qt.io/
+   A Qt Multimedia FFmpeg-alapú bővítménye LGPL-licencű FFmpeg-könyvtárakat
+   (avcodec, avformat, avutil, swresample, swscale) használ.
 
-Python/Tcl/Tk: PSF / Tcl/Tk licenses (bundled in PyInstaller EXE).
+5. Python 3.11 futtatókörnyezet (_internal\python311.dll, …)
+   https://www.python.org/  –  Licenc: PSF License – python-PSF.txt
 
-Before distributing a built ZIP publicly, preserve and review the exact license
-texts and notices from the binary distributions and their transitive components.
+6. PyInstaller bootloader
+   https://pyinstaller.org/  –  Licenc: GPL-2.0-or-later a bootloaderre
+   vonatkozó külön kivétellel, amely lehetővé teszi tetszőleges licencű
+   alkalmazás terjesztését.
+
+Csak a buildhez (a csomagban nincs): Pillow (MIT-CMU, pillow-MIT-CMU.txt) az
+ikon előállításához.
+
+A program nem tartalmaz reklámot, követőkódot vagy telemetriát; hálózati kérést
+csak a felhasználó által megadott linkekhez, az előnézeti képekhez és – kérésre –
+a GitHub kiadási oldalaihoz küld.

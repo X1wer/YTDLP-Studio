@@ -357,9 +357,19 @@ def job_workdir(dest: Path, key: str) -> Path:
     return dest / TEMP_DIR_NAME / key
 
 
-def cleanup_workdir(dest: Path, key: str) -> None:
+def cleanup_workdir(dest: Path, key: str, wait: float = 5.0) -> None:
+    """Törli a feladat munkamappáját.
+
+    Megszakítás után a leállított FFmpeg még néhány tized másodpercig fogva
+    tarthatja a részleges fájlokat, ezért rövid ideig újrapróbálkozik.
+    """
     work = job_workdir(dest, key)
-    shutil.rmtree(work, ignore_errors=True)
+    deadline = time.monotonic() + wait
+    while work.exists():
+        shutil.rmtree(work, ignore_errors=True)
+        if not work.exists() or time.monotonic() > deadline:
+            break
+        time.sleep(0.25)
     try:
         (dest / TEMP_DIR_NAME).rmdir()  # csak ha üres
     except OSError:
@@ -647,8 +657,13 @@ class DownloadTask:
             if opts.sub_langs:
                 missing = []  # lejátszási listánál a preferált nyelvek opcionálisak
             if code != 0 or missing:
-                detail = explain("\n".join(messages)).message if messages else ""
+                joined = "\n".join(messages)
                 names = ", ".join(missing) if missing else "egyes feliratok"
+                if "429" in joined and any(s.kind == "translated" and s.language in missing for s in opts.subtitles):
+                    detail = ("A YouTube jelenleg nem engedi az automatikusan fordított felirat letöltését "
+                              "(429 – túl sok kérés). Próbáld később, vagy válaszd az eredeti nyelvű feliratot.")
+                else:
+                    detail = explain(joined).message if messages else ""
                 message = f"Nem sikerült letölteni: {names}. {detail}".strip()
                 result.warnings.append(message)
                 self.on_log("FIGYELEM: " + message)

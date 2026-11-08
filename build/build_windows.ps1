@@ -1,165 +1,220 @@
-﻿# Build a real, self-contained Windows 11 x64 portable distribution.
-# Run in PowerShell on Windows 11 with a supported 64-bit Python 3.11-3.13 installed:
-#   powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
+﻿# YTDLP Studio – Windows 11 x64 portable build
+#
+# Használat (PowerShell, a projekt gyökeréből vagy bárhonnan):
+#   powershell -ExecutionPolicy Bypass -File build\build_windows.ps1
+# Kapcsolók:
+#   -SkipTests      az automatikus tesztek kihagyása
+#   -OfflineTools   a bin\ mappában lévő eszközök használata letöltés nélkül
+#
+# Eredmény: dist\YTDLPStudio\ (portable mappa) és dist\YTDLPStudio-<verzió>-Windows-x64-portable.zip
+param([switch]$SkipTests, [switch]$OfflineTools)
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$ProgressPreference = 'SilentlyContinue'   # az Invoke-WebRequest így sokkal gyorsabb
 
-Set-Location $PSScriptRoot
-$bin = Join-Path $PSScriptRoot 'bin'
-$distDir = Join-Path $PSScriptRoot 'dist'
-$stage = Join-Path $distDir 'YTDLPStudio-portable'
-New-Item -ItemType Directory -Force $bin,$distDir | Out-Null
+$Root = Split-Path -Parent $PSScriptRoot
+Set-Location $Root
+$Bin = Join-Path $Root 'bin'
+$Cache = Join-Path $Root '.build-cache'
+$Downloads = Join-Path $Cache 'downloads'
+$Dist = Join-Path $Root 'dist'
+$AppDir = Join-Path $Dist 'YTDLPStudio'
+New-Item -ItemType Directory -Force $Bin, $Downloads, $Dist | Out-Null
 
-function Get-Release([string]$url) {
-  return Invoke-RestMethod -Uri $url -Headers @{'User-Agent'='YTDLPStudio-Build/0.1'; 'Accept'='application/vnd.github+json'}
-}
-function Get-Asset([object]$release, [string]$name, [string]$target, [switch]$RequiredSha) {
-  $asset = @($release.assets | Where-Object { $_.name -eq $name }) | Select-Object -First 1
-  if ($null -eq $asset) { throw "Missing release file: $name" }
-  $expected = $null
-  if ($asset.PSObject.Properties['digest'] -and $asset.digest -match '^sha256:([a-f0-9]{64})$') { $expected = $Matches[1] }
-  if (-not $expected -and $RequiredSha) {
-    $sums = @($release.assets | Where-Object { $_.name -eq 'SHA2-256SUMS' }) | Select-Object -First 1
-    if ($null -eq $sums) { throw "No official SHA-256 hash available: $name" }
-    $sumPath = Join-Path $distDir 'SHA2-256SUMS.txt'
-    Invoke-WebRequest -UseBasicParsing -Uri $sums.browser_download_url -OutFile $sumPath
-    foreach ($line in (Get-Content $sumPath)) {
-      if ($line -match '^([A-Fa-f0-9]{64})\s+\*?(.+)$' -and $Matches[2].Trim() -eq $name) {
-        $expected = $Matches[1]; break
-      }
-    }
-  }
-  if ($RequiredSha -and -not $expected) { throw "Cannot verify SHA-256 for $name" }
+$Version = (Select-String -Path 'src\ytstudio\__init__.py' -Pattern '__version__ = "([0-9.]+)"').Matches[0].Groups[1].Value
+Write-Host "YTDLP Studio $Version - portable build" -ForegroundColor Cyan
 
-  # Re-use the binary already downloaded on a previous run ONLY if its
-  # checksum matches the current official GitHub release.
-  $verified = $false
-  if ($expected -and (Test-Path -LiteralPath $target -PathType Leaf)) {
-    $actual = (Get-FileHash -Path $target -Algorithm SHA256).Hash
-    $verified = ($actual -eq $expected)
-    if ($verified) { Write-Host "Cached SHA-256 OK: $name" -ForegroundColor Green }
-  }
-  if (-not $verified) {
-    Write-Host "Downloading: $name" -ForegroundColor Cyan
-    $tempTarget = "$target.download"
-    if (Test-Path $tempTarget) { Remove-Item $tempTarget -Force }
-    try {
-      Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile $tempTarget
-      if ($expected) {
-        $actual = (Get-FileHash -Path $tempTarget -Algorithm SHA256).Hash
-        if ($actual -ne $expected) { throw "SHA-256 mismatch: $name" }
-        Write-Host "SHA-256 OK: $name" -ForegroundColor Green
-      } else {
-        Write-Warning "${name}: No official SHA-256 provided by the release; downloaded via HTTPS."
-      }
-      Move-Item -LiteralPath $tempTarget -Destination $target -Force
-    } finally {
-      if (Test-Path $tempTarget) { Remove-Item $tempTarget -Force }
-    }
-  }
-}
-
-# Accept an installed 64-bit Python 3.11-3.13, whether it is launched by
-# 'python' or through the Windows 'py' launcher. Prefer Python 3.12.
+# --------------------------------------------------------------------------
+# Python 3.11–3.13 x64 keresése ('py' launcher vagy 'python')
+# --------------------------------------------------------------------------
 function Find-BuildPython {
   $candidates = @(
-    @{ Command = 'py'; Prefix = @('-3.12') },
-    @{ Command = 'py'; Prefix = @('-3.13') },
-    @{ Command = 'py'; Prefix = @('-3.11') },
-    @{ Command = 'python'; Prefix = @() },
-    @{ Command = 'python3'; Prefix = @() },
-    @{ Command = 'py'; Prefix = @() }
-  )
-  $checkCode = "import sys, struct; v=sys.version_info; ok=(3,11)<=v[:2]<=(3,13) and struct.calcsize('P')==8; print('PYTHON_OK:'+sys.version.split()[0]) if ok else sys.exit(2)"
-  foreach ($candidate in $candidates) {
-    $cmd = $candidate.Command
-    if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { continue }
-    $argsToCheck = @($candidate.Prefix) + @('-c', $checkCode)
-    # Some 'py -3.12' calls may fail if that specific version is unavailable.
-    # Ignore these probing failures and try the next candidate.
+    @{ Command = 'py'; Prefix = @('-3.12') }, @{ Command = 'py'; Prefix = @('-3.13') },
+    @{ Command = 'py'; Prefix = @('-3.11') }, @{ Command = 'python'; Prefix = @() },
+    @{ Command = 'python3'; Prefix = @() }, @{ Command = 'py'; Prefix = @() })
+  $check = "import sys, struct; v=sys.version_info; ok=(3,11)<=v[:2]<=(3,13) and struct.calcsize('P')==8; print('PYTHON_OK:'+sys.version.split()[0]) if ok else sys.exit(2)"
+  foreach ($c in $candidates) {
+    if (-not (Get-Command $c.Command -ErrorAction SilentlyContinue)) { continue }
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-      $result = & $cmd @argsToCheck 2>$null
-      $exitCode = $LASTEXITCODE
-      if ($exitCode -eq 0 -and "$result" -match 'PYTHON_OK:([0-9]+\.[0-9]+\.[0-9]+)') {
-        return @{ Command = $cmd; Prefix = @($candidate.Prefix); Version = $Matches[1] }
+      $out = & $c.Command @($c.Prefix + @('-c', $check)) 2>$null
+      if ($LASTEXITCODE -eq 0 -and "$out" -match 'PYTHON_OK:([0-9.]+)') {
+        return @{ Command = $c.Command; Prefix = @($c.Prefix); Version = $Matches[1] }
       }
-    } catch {
-      # Try other Python commands rather than aborting the entire build.
-    } finally {
-      $ErrorActionPreference = $previous
+    } catch { } finally { $ErrorActionPreference = $previous }
+  }
+  throw 'Nem talalhato 64 bites Python 3.11-3.13. Telepitsd: https://www.python.org/downloads/windows/'
+}
+
+# --------------------------------------------------------------------------
+# Hivatalos GitHub-kiadások letöltése SHA-256 ellenőrzéssel, gyorsítótárral
+# --------------------------------------------------------------------------
+function Get-Release([string]$Repo, [string]$Tag = 'latest') {
+  $url = if ($Tag -eq 'latest') { "https://api.github.com/repos/$Repo/releases/latest" } else { "https://api.github.com/repos/$Repo/releases/tags/$Tag" }
+  return Invoke-RestMethod -Uri $url -Headers @{ 'User-Agent' = "YTDLPStudio-Build/$Version"; 'Accept' = 'application/vnd.github+json' }
+}
+
+function Get-VerifiedAsset([object]$Release, [string]$Name, [string]$Target, [switch]$RequireSha) {
+  $asset = @($Release.assets | Where-Object { $_.name -eq $Name }) | Select-Object -First 1
+  if ($null -eq $asset) { throw "A kiadasbol hianyzik: $Name" }
+  $expected = $null
+  if ($asset.PSObject.Properties['digest'] -and "$($asset.digest)" -match '^sha256:([a-fA-F0-9]{64})$') { $expected = $Matches[1].ToUpper() }
+  $sums = @($Release.assets | Where-Object { $_.name -eq 'SHA2-256SUMS' }) | Select-Object -First 1
+  if ($null -ne $sums) {
+    $sumFile = Join-Path $Downloads "$($Release.tag_name)-SHA2-256SUMS"
+    Invoke-WebRequest -UseBasicParsing -Uri $sums.browser_download_url -OutFile $sumFile
+    foreach ($line in Get-Content $sumFile) {
+      if ($line -match '^([A-Fa-f0-9]{64})\s+\*?(.+)$' -and $Matches[2].Trim() -eq $Name) {
+        $listed = $Matches[1].ToUpper()
+        if ($expected -and $expected -ne $listed) { throw "Eltero hivatalos SHA-256 ertekek: $Name" }
+        $expected = $listed
+      }
     }
   }
-  throw "No compatible 64-bit Python found. Install Python 3.12 x64 from https://www.python.org/downloads/windows/ (or check: py -0p and python --version)."
+  if ($RequireSha -and -not $expected) { throw "Nincs hivatalos SHA-256 ehhez: $Name" }
+  if ($expected -and (Test-Path -LiteralPath $Target -PathType Leaf)) {
+    if ((Get-FileHash -LiteralPath $Target -Algorithm SHA256).Hash -eq $expected) {
+      Write-Host "  gyorsitotarbol (SHA-256 OK): $Name" -ForegroundColor Green
+      return
+    }
+  }
+  Write-Host "  letoltes: $Name" -ForegroundColor Cyan
+  $temp = "$Target.download"
+  if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
+  try {
+    Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile $temp
+    if ($expected) {
+      if ((Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash -ne $expected) { throw "SHA-256 elteres: $Name" }
+      Write-Host "  SHA-256 OK: $Name" -ForegroundColor Green
+    } else {
+      Write-Warning "${Name}: a kiadas nem ad SHA-256 erteket; HTTPS-en letoltve."
+    }
+    Move-Item -LiteralPath $temp -Destination $Target -Force
+  } finally {
+    if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
+  }
 }
 
-$buildPython = Find-BuildPython
-Write-Host "Using Python $($buildPython.Version) x64 via $($buildPython.Command) $($buildPython.Prefix -join ' ')" -ForegroundColor Green
-function Invoke-BuildPython([string[]]$PythonArgs) {
-  $fullArgs = @($buildPython.Prefix) + $PythonArgs
-  & $buildPython.Command @fullArgs
-  if ($LASTEXITCODE -ne 0) { throw "Python process failed (exit code $LASTEXITCODE): $($PythonArgs -join ' ')" }
+$versions = [ordered]@{ 'YTDLP Studio' = $Version }
+if ($OfflineTools) {
+  foreach ($tool in 'yt-dlp', 'ffmpeg', 'ffprobe', 'deno') {
+    if (-not (Test-Path (Join-Path $Bin "$tool.exe"))) { throw "Hianyzik: bin\$tool.exe (futtasd -OfflineTools nelkul)" }
+  }
+  $versions['Eszkozok'] = 'a meglevo bin\ mappabol (offline build)'
+} else {
+  Write-Host 'Fuggosegek a hivatalos kiadasokbol:' -ForegroundColor Cyan
+  $ytdlp = Get-Release 'yt-dlp/yt-dlp'
+  Get-VerifiedAsset $ytdlp 'yt-dlp.exe' (Join-Path $Bin 'yt-dlp.exe') -RequireSha
+  $versions['yt-dlp'] = "$($ytdlp.tag_name) (github.com/yt-dlp/yt-dlp)"
+
+  $deno = Get-Release 'denoland/deno'
+  $denoZip = Join-Path $Downloads 'deno-x86_64-pc-windows-msvc.zip'
+  Get-VerifiedAsset $deno 'deno-x86_64-pc-windows-msvc.zip' $denoZip -RequireSha
+  $denoOut = Join-Path $Cache 'deno-extract'
+  if (Test-Path $denoOut) { Remove-Item $denoOut -Recurse -Force }
+  Expand-Archive -LiteralPath $denoZip -DestinationPath $denoOut -Force
+  Copy-Item (Join-Path $denoOut 'deno.exe') (Join-Path $Bin 'deno.exe') -Force
+  $versions['Deno'] = "$($deno.tag_name) (github.com/denoland/deno)"
+
+  $ff = Get-Release 'BtbN/FFmpeg-Builds' 'latest'
+  $ffName = 'ffmpeg-master-latest-win64-gpl.zip'
+  $ffZip = Join-Path $Downloads $ffName
+  Get-VerifiedAsset $ff $ffName $ffZip -RequireSha
+  $ffOut = Join-Path $Cache 'ffmpeg-extract'
+  if (Test-Path $ffOut) { Remove-Item $ffOut -Recurse -Force }
+  Expand-Archive -LiteralPath $ffZip -DestinationPath $ffOut -Force
+  foreach ($tool in 'ffmpeg.exe', 'ffprobe.exe') {
+    $found = Get-ChildItem $ffOut -Recurse -Filter $tool -File | Select-Object -First 1
+    if (-not $found) { throw "Az FFmpeg ZIP-bol hianyzik: $tool" }
+    Copy-Item $found.FullName (Join-Path $Bin $tool) -Force
+  }
+  $ffLicense = Get-ChildItem $ffOut -Recurse -File -Filter 'LICENSE*' | Select-Object -First 1
+  if ($ffLicense) { Copy-Item $ffLicense.FullName (Join-Path $Cache 'ffmpeg-distribution-LICENSE.txt') -Force }
+  $ffAsset = @($ff.assets | Where-Object { $_.name -eq $ffName })[0]
+  $versions['FFmpeg'] = "BtbN/FFmpeg-Builds $($ff.tag_name), feltoltve $($ffAsset.updated_at) (win64-gpl)"
 }
 
-# yt-dlp standalone includes yt-dlp-ejs. Deno is bundled separately.
-$ydlp = Get-Release 'https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest'
-Get-Asset $ydlp 'yt-dlp.exe' (Join-Path $bin 'yt-dlp.exe') -RequiredSha
-
-$deno = Get-Release 'https://api.github.com/repos/denoland/deno/releases/latest'
-$denoZip = Join-Path $distDir 'deno.zip'
-Get-Asset $deno 'deno-x86_64-pc-windows-msvc.zip' $denoZip
-$denoExtract = Join-Path $distDir 'deno-extract'
-New-Item -ItemType Directory -Force $denoExtract | Out-Null
-Expand-Archive -Path $denoZip -DestinationPath $denoExtract -Force
-Copy-Item (Join-Path $denoExtract 'deno.exe') (Join-Path $bin 'deno.exe') -Force
-
-# Gyan / BtbN are community FFmpeg binary distributors; no official Windows
-# executables are published by the FFmpeg upstream. Use GPL-licensed binaries.
-$ffRelease = Get-Release 'https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/tags/latest'
-$ffZip = Join-Path $distDir 'ffmpeg.zip'
-Get-Asset $ffRelease 'ffmpeg-master-latest-win64-gpl.zip' $ffZip
-$ffExtract = Join-Path $distDir 'ffmpeg-extract'
-New-Item -ItemType Directory -Force $ffExtract | Out-Null
-Expand-Archive -Path $ffZip -DestinationPath $ffExtract -Force
-$ffFound = Get-ChildItem $ffExtract -Recurse -Filter 'ffmpeg.exe' -File | Select-Object -First 1
-$probeFound = Get-ChildItem $ffExtract -Recurse -Filter 'ffprobe.exe' -File | Select-Object -First 1
-if (-not $ffFound -or -not $probeFound) { throw 'Az FFmpeg ZIP nem tartalmazza a szükséges EXE fájlokat' }
-Copy-Item $ffFound.FullName (Join-Path $bin 'ffmpeg.exe') -Force
-Copy-Item $probeFound.FullName (Join-Path $bin 'ffprobe.exe') -Force
-
-# Build in a project-local virtual environment (no admin rights or global
-# Python package modifications). The finished EXE does not require Python.
-$venvDir = Join-Path $PSScriptRoot '.build-venv'
-$venvPython = Join-Path $venvDir 'Scripts\python.exe'
-if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
-  Write-Host 'Creating isolated build environment...'
-  Invoke-BuildPython @('-m', 'venv', $venvDir)
+# --------------------------------------------------------------------------
+# Python-környezet, tesztek, PyInstaller
+# --------------------------------------------------------------------------
+$py = Find-BuildPython
+Write-Host "Python $($py.Version) ($($py.Command) $($py.Prefix -join ' '))" -ForegroundColor Green
+$venv = Join-Path $Root '.build-venv'
+$venvPython = Join-Path $venv 'Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $venvPython)) {
+  & $py.Command @($py.Prefix + @('-m', 'venv', $venv))
+  if ($LASTEXITCODE -ne 0) { throw 'A virtualis kornyezet letrehozasa nem sikerult.' }
 }
-& $venvPython -c "import sys; sys.exit(0 if (3,11) <= sys.version_info[:2] <= (3,13) and sys.maxsize > 2**32 else 1)"
-if ($LASTEXITCODE -ne 0) { throw 'Existing .build-venv is incompatible. Delete that directory and retry.' }
-Write-Host 'Installing PyInstaller and Pillow into the local build environment...'
-& $venvPython -m pip install --disable-pip-version-check -r requirements-build.txt
-if ($LASTEXITCODE -ne 0) { throw 'Failed to install Python build dependencies.' }
-& $venvPython -m PyInstaller --noconfirm --clean --onefile --windowed --name YTDLPStudio --icon assets\icon.ico start.py
-if ($LASTEXITCODE -ne 0) { throw 'PyInstaller compilation failed.' }
-if (!(Test-Path (Join-Path $distDir 'YTDLPStudio.exe'))) { throw 'A Windows EXE nem készült el' }
-if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
-New-Item -ItemType Directory -Force (Join-Path $stage 'bin'), (Join-Path $stage 'licenses') | Out-Null
-Copy-Item (Join-Path $distDir 'YTDLPStudio.exe') (Join-Path $stage 'YTDLPStudio.exe') -Force
-Copy-Item (Join-Path $bin '*.exe') (Join-Path $stage 'bin') -Force
-Copy-Item (Join-Path $PSScriptRoot 'licenses\*') (Join-Path $stage 'licenses') -Recurse -Force
-Copy-Item (Join-Path $PSScriptRoot 'README.md') (Join-Path $stage 'README.md') -Force
-@("YTDLPStudio 0.1.3", "yt-dlp: $($ydlp.tag_name)", "Deno: $($deno.tag_name)",
-  "FFmpeg BtbN: $($ffRelease.tag_name)", "Binaries from official GitHub release pages") |
-  Set-Content (Join-Path $stage 'VERSIONS.txt') -Encoding utf8
-# Preserve bundled FFmpeg license and documentation if shipped by distributor.
-$ffLicenseFiles = @(Get-ChildItem $ffExtract -Recurse -File | Where-Object { $_.Name -match '^(LICENSE|COPYING)(\..*)?$' })
-foreach ($file in $ffLicenseFiles) {
-  Copy-Item $file.FullName (Join-Path $stage ('licenses\ffmpeg-distribution-' + $file.Name)) -Force
+& $venvPython -m pip install --disable-pip-version-check -q -r 'build\requirements-build.txt'
+if ($LASTEXITCODE -ne 0) { throw 'A Python-csomagok telepitese nem sikerult.' }
+if (-not (Test-Path 'assets\icon.ico')) { & $venvPython 'build\make_icon.py' }
+
+if (-not $SkipTests) {
+  Write-Host 'Automatikus tesztek...' -ForegroundColor Cyan
+  Push-Location 'tests'
+  try {
+    & $venvPython -m unittest discover -s .
+    if ($LASTEXITCODE -ne 0) { throw 'A tesztek hibat jeleztek; a build leallt.' }
+  } finally { Pop-Location }
 }
-$archive = Join-Path $distDir 'YTDLPStudio-Windows-x64-portable.zip'
-if (Test-Path $archive) { Remove-Item $archive -Force }
-Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive -CompressionLevel Optimal
-Write-Host "KÉSZ: $archive" -ForegroundColor Green
-Write-Host 'Indítsd el a portable YTDLPStudio.exe-t a kicsomagolt mappából.'
+
+$parts = ($Version.Split('.') + @('0', '0', '0', '0'))[0..3] -join ', '
+$dotted = ($Version.Split('.') + @('0', '0', '0', '0'))[0..3] -join '.'
+@"
+VSVersionInfo(
+  ffi=FixedFileInfo(filevers=($parts), prodvers=($parts), mask=0x3f, flags=0x0, OS=0x40004,
+                    fileType=0x1, subtype=0x0, date=(0, 0)),
+  kids=[
+    StringFileInfo([StringTable('040E04B0', [
+      StringStruct('CompanyName', 'YTDLP Studio contributors'),
+      StringStruct('FileDescription', 'YTDLP Studio - video- es hangletolto'),
+      StringStruct('FileVersion', '$dotted'),
+      StringStruct('InternalName', 'YTDLPStudio'),
+      StringStruct('LegalCopyright', 'MIT License'),
+      StringStruct('OriginalFilename', 'YTDLPStudio.exe'),
+      StringStruct('ProductName', 'YTDLP Studio'),
+      StringStruct('ProductVersion', '$Version')])]),
+    VarFileInfo([VarStruct('Translation', [0x040E, 1200])])
+  ]
+)
+"@ | Set-Content -Path (Join-Path $Cache 'version_info.txt') -Encoding UTF8
+
+Write-Host 'PyInstaller (onedir)...' -ForegroundColor Cyan
+if (Test-Path $AppDir) { Remove-Item $AppDir -Recurse -Force }
+& $venvPython -m PyInstaller --noconfirm --clean --log-level WARN --distpath $Dist --workpath (Join-Path $Cache 'pyinstaller') 'build\YTDLPStudio.spec'
+if ($LASTEXITCODE -ne 0) { throw 'A PyInstaller-forditas nem sikerult.' }
+if (-not (Test-Path (Join-Path $AppDir 'YTDLPStudio.exe'))) { throw 'Nem keszult el a YTDLPStudio.exe' }
+
+# --------------------------------------------------------------------------
+# Portable mappa összeállítása
+# --------------------------------------------------------------------------
+New-Item -ItemType Directory -Force (Join-Path $AppDir 'bin'), (Join-Path $AppDir 'licenses') | Out-Null
+foreach ($tool in 'yt-dlp', 'ffmpeg', 'ffprobe', 'deno') { Copy-Item (Join-Path $Bin "$tool.exe") (Join-Path $AppDir 'bin') -Force }
+Get-ChildItem 'docs\licenses' -File | Where-Object { $_.Name -ne 'pillow-MIT-CMU.txt' } | Copy-Item -Destination (Join-Path $AppDir 'licenses') -Force
+$ffLicenseCached = Join-Path $Cache 'ffmpeg-distribution-LICENSE.txt'
+if (Test-Path $ffLicenseCached) { Copy-Item $ffLicenseCached (Join-Path $AppDir 'licenses') -Force }
+Copy-Item 'README.md', 'CHANGELOG.md' $AppDir -Force
+foreach ($tool in 'yt-dlp', 'ffmpeg', 'deno') {
+  $exe = Join-Path $Bin "$tool.exe"
+  $flag = if ($tool -eq 'ffmpeg') { '-version' } else { '--version' }
+  $line = (& $exe $flag 2>$null | Select-Object -First 1)
+  $versions["$tool (futtatva)"] = "$line"
+}
+$versions['Build ideje'] = (Get-Date -Format 'yyyy-MM-dd HH:mm')
+($versions.GetEnumerator() | ForEach-Object { "$($_.Key): $($_.Value)" }) | Set-Content (Join-Path $AppDir 'VERSIONS.txt') -Encoding UTF8
+
+$zip = Join-Path $Dist "YTDLPStudio-$Version-Windows-x64-portable.zip"
+if (Test-Path $zip) { Remove-Item $zip -Force }
+Write-Host 'ZIP keszitese...' -ForegroundColor Cyan
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($AppDir, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $true)
+$hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLower()
+"$hash  $(Split-Path $zip -Leaf)" | Set-Content "$zip.sha256" -Encoding ASCII
+
+$size = '{0:N0} MB' -f ((Get-Item $zip).Length / 1MB)
+Write-Host ''
+Write-Host "KESZ: $AppDir" -ForegroundColor Green
+Write-Host "ZIP:  $zip ($size)" -ForegroundColor Green
+Write-Host "SHA-256: $hash"

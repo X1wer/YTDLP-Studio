@@ -1,140 +1,178 @@
-# YTDLP Studio v0.1.3 — portable, magyar nyelvű yt-dlp kezelőfelület
+# YTDLP Studio
 
-**Állapot:** fejlesztői első kiadás. A forráskód elkészült és egységteszteket
-futtatunk rajta; a Windows 11-es működést és az élő YouTube-letöltéseket külön,
-valós Windows gépen kell tesztelni. A forrás ZIP **nem** tartalmaz kész Windows
-EXE-t vagy harmadik felektől származó binárisokat.
+**Magyar nyelvű, ingyenes, telepítés nélkül használható videó- és hangletöltő Windowsra**, a
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) alapjaira építve. Parancssori ismeret nélkül
+tölthetsz le videót, zenét vagy feliratot – akár csak egy kiválasztott részletet.
 
-## Windows portable ZIP elkészítése
+![YTDLP Studio](docs/screenshots/main-light.png)
 
-Ajánlott: töltsd fel a projekt teljes tartalmát egy GitHub-repozitóriumba, és
-indítsd el az **Actions → Windows x64 portable EXE → Run workflow** futtatást.
-A `YTDLPStudio-Windows-x64-portable` artifact egy teljes ZIP-csomag, benne:
+> Csak olyan tartalmat tölts le, amelyhez jogod van (pl. saját, nyílt licencű vagy a
+> szolgáltatás által engedélyezett tartalom). A program DRM-védelmet nem kerül meg.
+
+## Funkciók
+
+- **Videó letöltése** MP4, MKV vagy WebM formátumban, választható minőséggel (4K-ig, ha
+  elérhető), újrakódolás nélkül. MP4-nél azonos felbontáson a legjobban lejátszható kodeket
+  választja. Becsült fájlméret már letöltés előtt.
+- **Csak hang**: MP3, M4A, AAC, Opus, FLAC, WAV vagy az eredeti hangsáv átkódolás nélkül,
+  borítóképpel és metaadatokkal.
+- **Csak felirat**: SRT vagy VTT.
+- **Feliratok**: eredeti (feltöltött), automatikus (beszédfelismerés) és a YouTube által
+  automatikusan fordított feliratok; több nyelv egyszerre; külön fájlba vagy a videóba
+  ágyazva, nyelvi címkével.
+- **Többnyelvű hangsávok** (pl. szinkronok): egy vagy több sáv; több sáv egy MKV-fájlba
+  nyelvi címkével, hang módban pedig külön fájlokba. „AI-szinkron” címkét csak akkor mutat,
+  ha a YouTube így jelöli.
+- **Időbeli vágás**: idővonal két végponttal, kézzel írható időpontok, fejezetválasztó,
+  előnézet-lejátszóból kijelölhető kezdő- és végpont. Csak a kért szakasz töltődik le;
+  gyors (újrakódolás nélküli) vagy pontos vágás; a feliratok időzítése is igazodik.
+- **Lejátszási listák és csatornák**: listanézet kijelöléssel, kereséssel, almappával és
+  sorszámozással.
+- **Letöltési sor**: „Letöltés most” vagy „Hozzáadás a sorhoz”; haladás, sebesség,
+  hátralévő idő, megszakítás, újrapróbálás, kész fájl és mappa megnyitása.
+- **yt-dlp frissítés** a programból (Stable vagy Nightly), SHA-256 ellenőrzéssel és az előző
+  verzió visszaállításának lehetőségével.
+- Világos/sötét téma, DPI-skálázás, érthető magyar hibaüzenetek, részletes napló.
+- **Portable**: nem kell Python, FFmpeg vagy más telepítés; USB-meghajtóról is fut, a
+  beállításokat a saját `data` mappájába menti. Nincs reklám, követőkód vagy telemetria.
+
+## Indítás (portable verzió)
+
+1. Töltsd le a `YTDLPStudio-0.2.0-Windows-x64-portable.zip` fájlt.
+2. Csomagold ki egy **írható** mappába (pl. `Dokumentumok\YTDLPStudio` vagy pendrive).
+   Ne a ZIP-ből közvetlenül indítsd.
+3. Indítsd el a `YTDLPStudio.exe` fájlt. (Az első indításkor a Windows SmartScreen
+   figyelmeztethet, mert a program nincs digitálisan aláírva: „További információ” →
+   „Futtatás mindenképp”.)
+
+A mappa tartalma:
 
 ```text
-YTDLPStudio.exe
-bin/yt-dlp.exe
-bin/ffmpeg.exe
-bin/ffprobe.exe
-bin/deno.exe
-README.md
-licenses/...
+YTDLPStudio.exe        a program
+_internal\             a program futtatókörnyezete (Python, Qt) – ne töröld
+bin\                   yt-dlp.exe, ffmpeg.exe, ffprobe.exe, deno.exe
+licenses\              licencek és harmadik féltől származó összetevők
+data\                  beállítások, napló, gyorsítótár (első indításkor jön létre)
+README.md, CHANGELOG.md, VERSIONS.txt
 ```
-
-A GitHub Actions útvonal a Windows-fordítást és a függőségek hivatalos
-kiadásaiból történő beszerzését is elvégzi. A folyamatnak internethozzáférés
-kell. **A kész ZIP futtatásához Python/.NET telepítés nem szükséges.**
-
-Helyi Windows build: telepítsd a Python 3.12 (ajánlott), 3.11 vagy 3.13 64 bites kiadását, majd indítsd
-a `build_windows.cmd` fájlt (vagy PowerShellből a `build_windows.ps1` fájlt). A folyamat a legfrissebb yt-dlp
-stable kiadást, FFmpeg GPL Windows buildet és Deno runtimet tölti le.
 
 ## Használat
 
-1. Csomagold ki a teljes portable ZIP-et tetszőleges írható mappába.
-2. Indítsd el a `YTDLPStudio.exe` programot.
-3. Illessz be egy videó-URL-t, majd kattints **Elemzés**.
-4. Kattints a **formátum-mező jobb oldalán lévő háromszögre** (ezek natív Windows menük).
-   Az elemzés után válassz videó-/hangformátumot, szükség esetén hangsávot és feliratot.
-   A hangsávok és feliratok **jelölőnégyzetekkel**, Ctrl/Shift nélkül választhatók.
-   A keresővel szűrhetsz a nyelvekre; a kijelölések szűrés után is megmaradnak.
-   A jobb alsó részen a videó **nagy bélyegképes előnézete** látható;
-   a lejátszáshoz a „Videó megnyitása böngészőben” gombot használd.
-5. Opcionálisan add meg a `00:15:30` és `01:42:00` vágási határokat.
-6. Válaszd a **Hozzáadás a sorhoz** gombot.
-7. A **Eszközök / Frissítés** menüvel ellenőrizheted a legújabb stabil yt-dlp-t.
+1. **Link beillesztése** – másold ki a videó vagy lejátszási lista linkjét, majd kattints a
+   **Beillesztés** gombra (vagy húzd a linket az ablakra, vagy írd be és nyomj Entert).
+2. **Elemzés** – a program lekéri a videó adatait (cím, hossz, minőségek, hangsávok,
+   feliratok). Ez néhány másodperc; közben a gomb „Mégse” lesz.
+3. **Mit szeretnél letölteni?** – válaszd a *Videó*, *Csak hang* vagy *Csak felirat* módot,
+   majd a formátumot és a minőséget. Ritkább beállítások a *További beállítások* alatt.
+4. **Hangsávok, feliratok** – jelöld be a kívánt nyelveket (keresővel, típusszűrővel).
+   Ha nem jelölsz hangsávot, az eredeti hang kerül a fájlba.
+5. **Vágás (opcionális)** – kapcsold be a *Csak egy részlet letöltése* kapcsolót, és húzd a
+   végpontokat vagy írd be az időket (pl. `00:15:30` – `01:42:00`).
+6. **Letöltés most** (azonnal indul) vagy **Hozzáadás a sorhoz** (sorra kerülve indul).
+7. A jobb oldali **Letöltések** panelen nyisd meg a kész fájlt (▶) vagy a mappáját.
 
-**Feliratok:** A kézi és automatikus feliratok külön szerepelnek. Az
-„automatikus / fordított” címke nem garantálja, hogy az adott felirat
-YouTube-fordítás; az API ezt a különbséget nem mindig közli. A letöltés
-sikeressége az adott videótól függ. Ha egy nyelvhez kézi és automatikus
-felirat is kijelölésre kerül, a kézi felirat élvez elsőbbséget.
+Billentyűk: `Enter` – elemzés, `Ctrl+L` – linkmező, `Ctrl+Enter` – Letöltés most,
+`F5` – újraelemzés.
 
-**Hangsávok:** A lista az egyes nyelvekhez legjobb elérhető formátumot mutatja.
-A YouTube által biztosított többnyelvű hangsávokat képes kezelni, az AI
-szinkron tényét nem találja ki. Több kiválasztott hangsávhoz MKV szükséges.
-Ha nincs kijelölés, a yt-dlp választja az alapértelmezett hangot.
+## Gyakori hibák
 
-**Időbeli vágás:** a `--download-sections` + FFmpeg funkciót használja.
-Forrástól függően még így is letöltődhet több adat, vagy a vágás keyframe
-pontosságú lehet. A pontos vágás újrakódolhat. A letöltött SRT/VTT-feliratokat
-az alkalmazás a vágott szakaszhoz igazítja. A beágyazás MKV/MP4 esetén
-próbálkozás, és sikertelen esetben külső felirat marad.
+| Üzenet | Teendő |
+|---|---|
+| *Hozzáférés megtagadva (403)* / *YouTube-ellenőrzés sikertelen* | **Eszközök és frissítés** → yt-dlp frissítése (szükség esetén Nightly csatorna). |
+| *A YouTube ellenőrzést kér* (bot-ellenőrzés) | Várj néhány percet; ha ismétlődik, a Beállításokban válassz böngészősütiket (Firefox ajánlott). |
+| *Túl sok kérés (429)* automatikusan fordított feliratnál | A YouTube jelenleg gyakran elutasítja a fordított feliratok letöltését. Válaszd az eredeti nyelvű feliratot, vagy próbáld később. A videó ettől még letöltődik. |
+| *Korhatáros videó* | Bejelentkezett böngésző sütijei szükségesek (Beállítások → Böngészősütik). |
+| *A kért formátum nem érhető el* | Válassz „Legjobb elérhető” minőséget vagy másik formátumot. |
+| *Hiányzik: ffmpeg / yt-dlp* | Csomagold ki újra a teljes ZIP-et; a `bin` mappának a program mellett kell lennie. |
+| *Nincs írási jogosultság* | Válassz másik mentési mappát, vagy ne a `Program Files` mappából futtasd. |
 
-**Kompatibilitási korlát:** A program mindig a yt-dlp hivatalos parancssori
-szolgáltatásait használja; a webhelyek formátum- és jogosultsági korlátozásait
-nem kerüli meg. Ne használd DRM-megkerülésre vagy engedély nélküli letöltésre.
+Részletek: **Napló** gomb, illetve `data\logs\ytdlp-studio.log`.
 
-## Forrásból indítás (teszt vagy fejlesztés)
+## Ismert korlátozások
 
-Python 3.11+ és Tkinter szükséges (Windows Python disztribúció tartalmazza).
-A bélyegképhez opcionálisan Pillow. Tedd a `yt-dlp`, `ffmpeg`, `ffprobe` és
-`deno` programokat a `bin` mappába, vagy a PATH-on legyenek elérhetők.
+- A YouTube automatikusan fordított feliratainak letöltését a szolgáltató jelenleg gyakran
+  429-es hibával elutasítja (2026 novemberében tesztelve); az eredeti és az automatikus
+  (beszédfelismeréses) feliratok működnek.
+- Gyors vágásnál a kép a legközelebbi kulcskockánál kezdődhet (néhány tized másodperc);
+  a pontos vágás a részletet újrakódolja (lassabb). WebM pontos vágása különösen lassú.
+- Élő közvetítés vágása nem támogatott; élő adás letöltése a közvetítés végéig tart.
+- Az előnézet-lejátszó a videó alacsony felbontású változatát játssza le; ha egy oldalon
+  nem érhető el, a „Megnyitás böngészőben” gomb használható.
+- Chrome/Edge újabb verzióinál a sütik titkosítása miatt a böngészősütik olvasása
+  sikertelen lehet; Firefox ajánlott.
+- A program nincs digitálisan aláírva (SmartScreen-figyelmeztetés lehetséges).
+- A program saját frissítéskeresője a GitHub-tároló közzététele után kapcsolható be
+  (`src/ytstudio/__init__.py` → `APP_REPO`).
+
+## Buildelés forrásból
+
+Követelmény: Windows 10/11 x64, **Python 3.11–3.13 (64 bites)**, internetkapcsolat.
 
 ```powershell
-python start.py
-python -m unittest discover -s tests -v
+build\build_windows.cmd
 ```
 
-## Javítás – v0.1.1 buildszkript
+vagy PowerShellből: `powershell -ExecutionPolicy Bypass -File build\build_windows.ps1`
 
-A v0.1 forráscsomagban a `build_windows.ps1` 40. sorában szereplő
-`$name:` változóhivatkozás PowerShell-szintaktikai hibát okozott. Javítva
-`${name}:` alakra. A szkript UTF-8 BOM kódolást használ a Windows PowerShell
-5.1 magyar szövegeihez. A Windowsos build tényleges lefutása továbbra is
-külön ellenőrzést igényel.
+A szkript:
+1. letölti a legfrissebb hivatalos **yt-dlp**, **Deno** és **FFmpeg** (BtbN, win64-gpl)
+   kiadást, és SHA-256-tal ellenőrzi őket (a már letöltötteket újrahasznosítja);
+2. projektlokális `.build-venv` környezetbe telepíti a PyInstallert és a PySide6-ot;
+3. lefuttatja az automatikus teszteket (`-SkipTests` kapcsolóval kihagyható);
+4. elkészíti a `dist\YTDLPStudio\` portable mappát és a
+   `dist\YTDLPStudio-<verzió>-Windows-x64-portable.zip` csomagot (+ `.sha256`).
 
-## Ismert v0.1 korlátok
+`-OfflineTools`: a `bin\` mappában lévő eszközöket használja, letöltés nélkül.
+GitHub Actions: a `.github/workflows/build-windows.yml` ugyanezt futtatja Windows-runneren.
 
-- Windows EXE nincs helyben validálva; az Actions workflow-t Windows runneren
-  kell futtatni.
-- A lejátszási lista kezelés alapvető, nincs külön videónkénti lista-nézet.
-- A feliratok beágyazása MP4/MKV-hoz készült; WebM-hez külső felirat mentődik.
-- Magyar lokalizáció van; angol felület még nincs.
-- A „témaváltás” alkalmazás-újraindítást igényel.
-- Van nagy statikus bélyegképes videó-előnézet, de beépített streaming lejátszó és
-  vágási idővonal még nincs; a vágási időpontokat szöveges mezőkben kell megadni.
-- A yt-dlp stable csatornája frissíthető, nightly/master nincs bekötve.
-- FFmpeg és Deno frissítése a csomag újraépítésével történik.
-- A pontos időbélyeg és az FFmpeg-kompatibilitás forrásfüggő.
+### Forrásból futtatás és tesztek
 
-## Licensing and third-party components
+```powershell
+python -m venv .build-venv
+.build-venv\Scripts\python -m pip install -r build\requirements-build.txt
+.build-venv\Scripts\python start.py
+cd tests
+..\.build-venv\Scripts\python -m unittest discover -s .
+..\.build-venv\Scripts\python live_check.py      # valós hálózati ellenőrzés (kb. 3 perc)
+```
 
-Source code: MIT (see `licenses/YTDLPStudio-MIT.txt`). External executables are
-separately licensed; see `licenses/THIRD-PARTY-NOTICES.txt`. Their original
-license texts and any source-offer obligations must be preserved on public
-redistribution. No warranty is made for third-party services.
+Forrásból futtatáshoz a `yt-dlp.exe`, `ffmpeg.exe`, `ffprobe.exe` és `deno.exe` a `bin\`
+mappába kell (a buildszkript letölti őket).
 
----
+## Projektszerkezet
 
-**English summary:** YTDLP Studio is an open-source Hungarian-language Tkinter
-GUI for yt-dlp, providing video/audio formats, subtitles, multi-language audio,
-partial video downloads, download queue, and SHA-256-verified yt-dlp stable
-updates. GitHub Actions bundles it into a self-contained Windows x64 portable
-ZIP with FFmpeg and Deno. Windows integration tests remain necessary.
+```text
+src/ytstudio/        forráskód
+  core.py            metaadatok értelmezése, formátumválasztás, yt-dlp-argumentumok
+  engine.py          elemzés, letöltés, haladás, feliratok, vágás, véglegesítés
+  subtitles.py       SRT/VTT vágás és időeltolás
+  updater.py         yt-dlp frissítés (stable/nightly, SHA-256, visszaállítás)
+  errors.py          magyar hibamagyarázatok
+  langs.py           nyelvnevek, ISO 639-2 kódok
+  settings.py        portable mappák és beállítások
+  ui/                Qt-felület (főablak, sor, párbeszédablakok, vezérlők, téma, ikonok)
+assets/              ikon
+tests/               automatikus tesztek, minták, élő ellenőrzés
+build/               buildszkriptek, PyInstaller-leírás, ikongenerátor
+docs/                licencek, tesztjelentés, képernyőképek
+dist/                kész portable mappa és ZIP (build után)
+```
 
-## Javítás – v0.1.2 buildszkript
+## Függőségek és licencek
 
-A v0.1.1 build csak a `python` parancsot és kizárólag a 3.12 verziót
-fogadta el. A v0.1.2 a Windows `py` launchert is támogatja, és a 64 bites
-Python 3.11–3.13 verziókkal képes fordítani. Python 3.12 az ajánlott.
-A build már **a függőségek letöltése előtt** ellenőrzi a Pythont, a már
-letöltött és hash alapján ellenőrizhető függőségeket újra felhasználja.
-A Python-csomagok a projekt `.build-venv` mappájába települnek.
-Ha nem található megfelelő Python, ellenőrizd PowerShellben: `py -0p`
-és `python --version`. A kész EXE használatához nem kell Python.
+| Összetevő | Szerep | Licenc |
+|---|---|---|
+| YTDLP Studio | a program | MIT |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | videóadatok és letöltés | Unlicense |
+| [FFmpeg](https://ffmpeg.org/) ([BtbN-build](https://github.com/BtbN/FFmpeg-Builds)) | összefűzés, konvertálás, vágás | GPL v3 |
+| [Deno](https://deno.com/) | YouTube JavaScript-ellenőrzései | MIT |
+| [Qt 6 / PySide6](https://doc.qt.io/qtforpython/) | grafikus felület, előnézet | LGPL v3 |
+| Python 3.11 | futtatókörnyezet | PSF |
+| PyInstaller | csomagolás | GPL + bootloader-kivétel |
 
-## UI-frissítés – v0.1.3
+A teljes licencszövegek és a forrásokra vonatkozó tájékoztatás a `licenses` mappában
+(forrásban: `docs/licenses`) található. A program nem küld adatot a felhasználó tudta
+nélkül: hálózati kérés csak a megadott linkekhez, az előnézeti képekhez és – kérésre – a
+GitHub kiadási oldalaihoz történik.
 
-- A korábbi `ttk.Combobox` mezőket `ttk.OptionMenu` natív menük váltják fel,
-  mert egyes Windowsos környezetekben a ComboBox legördülő listái nem nyíltak meg.
-- Hangsávok és feliratok két szomszédos panelben, külön keresővel és valódi
-  jelölőnégyzetekkel. Többszörös kijelöléshez nem kell Ctrl vagy Shift.
-- A szűrt listák kijelölése változatlan marad; az „Összes törlése” gomb mindent
-  töröl, a „Láthatók mind” a jelenleg látható eredményeket jelöli.
-- A felszabadult helyen megjelenik az elemzett videó nagy, ablakméretre
-  igazodó borítóképe. Ez **nem videólejátszó**; a böngészőben nyitható meg.
-- A már kész portable EXE önmagában nem frissül a forrásmódosításoktól:
-  a `build_windows.cmd` fájllal újra kell építeni. Ha a meglévő forrásmappába
-  másolod a javított fájlokat, a build újrahasználhatja az előzőleg ellenőrzött
-  binárisokat és letöltött csomagokat.
+A YTDLP Studio saját kódja MIT-licencű (`LICENSE`).

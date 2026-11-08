@@ -1,27 +1,28 @@
-name: Windows x64 portable EXE
+name: Windows x64 portable build
 on:
   workflow_dispatch:
   push:
-    branches: [main]
     tags: ['v*']
 permissions:
   contents: read
 jobs:
   build:
     runs-on: windows-2022
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           architecture: 'x64'
-      - name: Compile and bundle official yt-dlp and dependencies
+      - name: Build (tests + official yt-dlp, FFmpeg, Deno + PyInstaller)
         shell: pwsh
-        run: ./build_windows.ps1
-      - name: Publish portable archive as build artifact
+        run: ./build/build_windows.ps1
+      - name: Upload portable ZIP
         uses: actions/upload-artifact@v4
         with:
           name: YTDLPStudio-Windows-x64-portable
-          path: dist/YTDLPStudio-Windows-x64-portable.zip
+          path: |
+            dist/YTDLPStudio-*-Windows-x64-portable.zip
+            dist/YTDLPStudio-*-Windows-x64-portable.zip.sha256
           if-no-files-found: error

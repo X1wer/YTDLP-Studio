@@ -1,64 +1,84 @@
-# YTDLP Studio v0.1.3 — tesztjelentés
+# YTDLP Studio 0.2.0 – tesztjelentés
 
-## Ellenőrzött (2026-11-01)
+Dátum: 2026-11-08 · Gép: Windows 11 Pro 10.0.26200 x64 · Build-Python: 3.11.9 ·
+PySide6/Qt 6.12.0 · yt-dlp 2026.10.26 (stable) · FFmpeg: BtbN win64-gpl · Deno 2.9.x
 
-- Python-modulok fordíthatósága: OK (`python -m compileall`).
-- Grafikus Tkinter-felület indulása Linux/Xvfb alatt: OK, képernyőkép készült.
-- 15 automatizált unit/integrációs teszt: OK.
-- yt-dlp JSON-adatainak normalizálása: unit tesztek OK.
-- Vágási időpontok validálása és parancsargumentumok előállítása: unit tesztek OK.
-- SRT/WebVTT-időzítés levágása és áthelyezése: unit tesztek OK.
-- Hivatalos SHA256 ellenőrzésre épülő frissítő: unit tesztek OK, online próba NEM történt.
-- Külső yt-dlp eszköz szimulációja: integrációs teszt OK (metaadat, médiaútvonal, felirat-utófeldolgozás).
-- Valódi helyi FFmpeg 7.1.5-tel: 1,5 másodperces szintetikus MKV-állományba SRT-felirat beágyazása, ffprobe stream-ellenőrzéssel OK.
+Jelölések: ✅ sikeres · ⚠️ külső korlátozás (nem a program hibája) · ❌ sikertelen
 
-## Nem ellenőrzött ebben a környezetben
+## 1. Automatikus tesztek (`tests/`, 44 db) – ✅ 44/44
 
-- Windows 11 x64 natív EXE build / portable működés.
-- Valódi YouTube letöltés és valós yt-dlp válaszok.
-- Automatikusan generált/fordított YouTube-feliratok konkrét videókkal.
-- Több nyelvű YouTube-hangsávok és AI-szinkron konkrét videókkal.
-- GitHub Actions workflow tényleges futtatása.
-- Frissítő valós yt-dlp.exe fájlcseréje Windows alatt.
-- Hosszabb vagy hálózati hibával megszakadó letöltés éles tesztje.
+| Modul | Db | Mit ellenőriz |
+|---|---|---|
+| `test_core.py` | 15 | időpont- és URL-ellenőrzés, valós YouTube-metaadat (24 hangsávos videó mintája): eredeti hangsáv felismerése, szinkron/AI-szinkron/narrált jelölés, felirattípusok (eredeti/automatikus/fordítás + forrásnyelv), lejátszási lista, formátumválasztók, MP4/MKV/WebM szabályok, `--encoding utf-8`, `--no-quiet`, vágás-argumentumok, felirat-ütközés kezelése, érvénytelen bemenetek elutasítása (injection-kísérletek), méretbecslés |
+| `test_subtitles.py` | 6 | SRT/VTT vágás, időeltolás (kulcskocka-kompenzáció), VTT-fejléc és beágyazott időbélyegek, ékezetes fájlnév, CR-CR-LF sorvégek |
+| `test_updater.py` | 4 | csak hivatalos letöltési cím, két SHA-256 forrás egyezése, verzió-összehasonlítás, telepítés + mentés + automatikus visszaállítás hibás frissítésnél + kézi visszaállítás |
+| `test_engine.py` | 7 | teljes letöltési folyamat szimulált yt-dlp-vel **valódi FFmpeg-gel**: elemzés (videó/lista), magyar hibaüzenet (403), vágott videó beágyazott `hun`+`eng` felirattal, ütközésmentes „(2)” név a feliratokkal együtt, hangsávok külön fájlokba, nem végzetes feliratletöltési hiba, csak felirat (kézi + `.auto`), megszakítás < 5 s, helyi pontos vágás |
+| `test_gui.py` | 11 | valódi Qt-ablak Windows-asztalon, egérkattintásokkal: üres állapot, hibás link magyar üzenete, **a minőségválasztó legördülő lista ténylegesen megnyílik** és a választás érvényesül, módváltás (Videó/Csak hang/Csak felirat) a releváns vezérlőkkel, **hangsávok jelölőnégyzetei** (több sáv → MKV kényszer), **keresés/szűrés nem törli a kijelölést**, felirattípus-szűrő és **felirat-jelölőnégyzetek**, vágási idővonal ↔ időmezők ↔ fejezetválasztó, Letöltés most / Hozzáadás a sorhoz, lejátszási lista (almappa, sorszám, nyelvek), sorkártyák és műveletek, futás közbeni témaváltás |
 
-**Kiadhatóság:** 0.1 fejlesztői előzetes. Éles, stabil Windows kiadásnak csak
-Windowsos fordítás és gyakorlati letöltési tesztek után tekinthető.
+Futtatás: `cd tests` → `..\.build-venv\Scripts\python -m unittest discover -s .`
+(a buildszkript a build előtt automatikusan lefuttatja, hiba esetén leáll).
 
-## v0.1.1 javítás
+## 2. Valós hálózati tesztek (`tests/live_check.py`) – a csomagolt yt-dlp/FFmpeg/Deno eszközökkel
 
-- A PowerShell parserhibát kiváltó `$name:` kifejezés javítva `${name}:` alakra.
-- A buildszkript UTF-8 BOM-mal mentve a Windows PowerShell 5.1 miatt.
-- A letöltőparancsokhoz `-UseBasicParsing` kapcsoló hozzáadva.
-- A Python és PyInstaller kilépési kódjainak ellenőrzése hozzáadva.
-- **Windows alatt a módosított buildet nem futtattam, így további hiba még előfordulhat.**
+Tesztanyag: *Big Buck Bunny* (Blender Foundation, CC BY 3.0), *Me at the zoo* (19 mp-es
+nyilvános tesztanyag). A többnyelvű hangsáv ellenőrzéséhez egy 3 másodperces, utána azonnal
+törölt részlet készült egy többnyelvű szinkronnal rendelkező nyilvános videóból.
 
-## v0.1.2 buildjavítás (2026-11-01)
+LIVE_RESULTS_PLACEHOLDER
 
-A Windows build korábbi verziója kizárólag a `python` parancsot és a Python
-3.12-t ismerte fel, ezért a letöltés után félbeszakadt, ha csak a `py`
-launcher volt elérhető vagy a Python verziója 3.11/3.13 volt.
-A buildszkript most több Python-indítási módot ellenőriz a letöltések előtt,
-projektlokális virtuális környezetet használ, és hash-ellenőrzés után
-újrahasznosítja a már letöltött fájlokat. A 15 Python-egységteszt újra
-sikeresen lefutott.
-**Korlát:** a PowerShell buildfolyamatot itt nem lehetett tényleges Windows 11
-környezetben futtatni, ezért az EXE elkészítését továbbra is helyben kell
-ellenőrizni.
+## 3. Valódi felületen végzett munkafolyamat (élő hálózattal) – ✅
 
-## v0.1.3 GUI-frissítés (2026-11-01)
+A forrásból indított alkalmazásban, programozott egérkattintásokkal:
+Beillesztés gomb (a vágólapon szöveg + link: „Nézd meg: https://…”) → a link kiemelése és
+automatikus elemzés („Mégse” gomb az elemzés alatt) → videókártya bélyegképpel →
+Minőség: 480p → vágás bekapcsolása, 00:02:00–00:02:15 → **Letöltés most** → a sorban
+„Letöltés … %” → „Kész · 1,5 MB”, a fájl a célmappában:
+`Big Buck Bunny … [aqz-KE-bpKQ] (00.02.00–00.02.15).mp4`.
 
-- A Tkinter `ttk.Combobox` legördülő mezőket natív `ttk.OptionMenu`
-  vezérlőkre cseréltem. Automatikus tesztben a menük bejegyzéseinek
-  meghívása az összes formátumtípus változóját megfelelően módosítja.
-- A hangsáv és felirat panel egymás mellé került, mindkettő kereshető,
-  görgethető, valódi jelölőnégyzetekkel rendelkezik.
-- Tesztelve: checkbox többes kijelölés; keresés utáni kijelölésmegőrzés;
-  a kijelölésből generált letöltési beállítások; kétpaneles elrendezés;
-  natív menüválasztás; a videó statikus előnézetének megjelenítése.
-- **19 / 19 automatikus teszt sikeres Linux/Xvfb alatt.**
-- A grafikus felületet Xvfb képernyőképpel szemrevételeztem.
-- **Windows 11-es natív EXE build, Windows legördülő menü egérrel
-  történő kipróbálása és éles YouTube-letöltés ezen a gépen nem történt.**
-- A látványtervi képernyőkép tesztmetaadatot és mesterséges képet mutat,
-  nem valódi YouTube-letöltést vagy beépített streaming videólejátszót.
+## 4. Portable EXE
+
+Build: `build\build_windows.ps1` (teljes, online futás) – ✅ kilépési kód 0.
+
+| Lépés | Eredmény |
+|---|---|
+| yt-dlp 2026.10.26 | ✅ GitHub `digest` + `SHA2-256SUMS` egyezik, gyorsítótárból |
+| Deno v2.9.8 ZIP | ✅ letöltve, SHA-256 OK |
+| FFmpeg BtbN win64-gpl (N-128691, 2026-11-08) | ✅ letöltve (~200 MB), SHA-256 OK |
+| Automatikus tesztek a build előtt | ✅ 44/44 |
+| PyInstaller 6.22.3 onedir, verzióinfó, ikon | ✅ |
+| Portable mappa | `dist\YTDLPStudio\` (≈ 550 MB kicsomagolva) |
+| ZIP | `dist\YTDLPStudio-0.2.0-Windows-x64-portable.zip` (235 MB) + `.sha256` |
+
+Ellenőrzés a kész csomaggal:
+
+- ✅ **Indulás Python nélküli környezetben**: a mappa átmásolva ide:
+  `%TEMP%\YTDLP próba ő ű\Hordozható mappa` (ékezetes, szóközös útvonal), indítás
+  `PATH=C:\Windows\System32;C:\Windows` környezettel, `PYTHON*` változók nélkül.
+  `YTDLPStudio.exe --selftest`: kilépési kód 0, ablak megnyílt, a négy eszköz verziója
+  lekérdezhető (yt-dlp 2026.10.26, FFmpeg N-128691, FFprobe N-128691, Deno 2.9.8),
+  Qt Multimedia betölthető. A betöltött modulok listája szerint a program kizárólag a saját
+  `_internal\python311.dll` fájlját használja.
+- ✅ **Portable adatkezelés**: a beállítások, a napló és a gyorsítótár a program saját
+  `data\` mappájába került; a rendszerleíró adatbázist a program nem használja.
+- ✅ **Grafikus indulás**: normál indításkor az ablak 1,1 mp alatt megjelent (rendszer szerinti
+  sötét téma, sötét natív címsor, saját ikon), bezáráskor 0 kóddal kilépett
+  (képernyőkép: `docs/screenshots/exe-dark.png`).
+
+## 5. Nem tesztelt vagy korlátozottan tesztelt esetek
+
+- **Tiszta, Python nélküli Windows-gép**: Windows Sandbox nem volt elérhető. Helyette a kész
+  mappa ékezetes, szóközös útvonalra másolva, Python nélküli `PATH`-tal futott, és
+  ellenőriztük, hogy csak a csomagolt `python311.dll`-t tölti be (lásd 4. pont).
+- **Automatikusan fordított YouTube-feliratok**: a YouTube a teszt idején minden kérésre
+  429-et adott (kézzel, a yt-dlp-vel közvetlenül is reprodukálva, késleltetéssel is). A program
+  ezt érthető magyar figyelmeztetéssel jelzi, a videó letöltését nem akasztja meg.
+- **Előnézet-lejátszó**: a lejátszó betöltése és a forrás-URL lejátszhatósága (FFmpeg-gel)
+  ellenőrizve; a hang/kép lejátszását ember nem nézte végig.
+- **GitHub Actions** workflow: nem futott (a tároló még nincs közzétéve).
+- **Böngészősütik** (korhatáros videók): nem tesztelt (bejelentkezett fiókot igényel).
+- **Nagyon nagy (több ezer elemes) lejátszási lista**: csak kis listával tesztelve; a lista
+  nézet virtualizált (QListView), a flat-playlist elemzés nem tölti le az egyes videók adatait.
+- **Nagy DPI**: valódi 150%-os monitor nem volt; 100%-on és `QT_SCALE_FACTOR=1.5`
+  szimulációval ellenőrizve (képernyőképen: éles vektoros ikonok, arányos elrendezés).
+- **Világos/sötét téma**: mindkettő képernyőképen ellenőrizve, a váltás újraindítás nélkül
+  működik (GUI-teszt is).

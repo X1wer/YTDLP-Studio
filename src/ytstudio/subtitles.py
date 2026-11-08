@@ -89,7 +89,8 @@ def trim_file(path: Path, start: float, end: float | None, offset: float = 0.0) 
     suffix = path.suffix.lower()
     if suffix not in {".srt", ".vtt"}:
         raise ValueError("Csak SRT és WebVTT fájlok időzítése igazítható.")
-    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    # Bájtként olvas, hogy a hibás CR-CR-LF sorvégek se okozzanak üres sorokat.
+    text = path.read_bytes().decode("utf-8-sig", errors="replace").replace("\r\r\n", "\n")
     trimmed = trim_subtitle_text(text, start, end, suffix == ".vtt", offset)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(trimmed, encoding="utf-8")

@@ -48,6 +48,11 @@ def tools() -> Tools:
     return Tools(ffmpeg.parent if ffmpeg else None, find_exe("deno"), cache)
 
 
+def tool_cmd(name: str) -> list[str]:
+    """A külső eszköz indítóparancsa (tesztekben helyettesíthető)."""
+    return [str(require(name))]
+
+
 def require(name: str) -> Path:
     path = find_exe(name)
     if path is None:
@@ -250,9 +255,9 @@ def tool_version(name: str) -> str:
 # --------------------------------------------------------------------------- #
 
 def analyze(url: str, *, cancel: threading.Event | None = None, allow_playlist: bool = True,
-            cookies_browser: str = "", on_log: LogCallback = lambda _: None) -> VideoInfo | PlaylistInfo:
-    yt = require("yt-dlp")
-    cmd = [str(yt)] + metadata_args(url, tools(), allow_playlist=allow_playlist,
+            cookies_browser: str = "", on_log: LogCallback = lambda _: None,
+            _depth: int = 0) -> VideoInfo | PlaylistInfo:
+    cmd = tool_cmd("yt-dlp") + metadata_args(url, tools(), allow_playlist=allow_playlist,
                                     cookies_browser=cookies_browser)
     on_log("Elemzés: " + url)
     proc = Process(cmd, cwd=data_dir(), merge_stderr=False)
@@ -265,7 +270,8 @@ def analyze(url: str, *, cancel: threading.Event | None = None, allow_playlist: 
         if line.strip():
             on_log(line)
     if proc.popen.returncode != 0:
-        raise OperationError(explain(errors), errors.strip())
+        details = errors.strip() or out.decode("utf-8", errors="replace")[-2000:].strip()
+        raise OperationError(explain(details), details)
     try:
         data = json.loads(out.decode("utf-8", errors="replace"))
     except json.JSONDecodeError as exc:
@@ -280,6 +286,12 @@ def analyze(url: str, *, cancel: threading.Event | None = None, allow_playlist: 
         entries = [e for e in entries or [] if isinstance(e, dict)]
         if len(entries) == 1 and entries[0].get("formats"):
             data = entries[0]
+        elif (entries and allow_playlist and all(str(e.get("ie_key")) == "YoutubeTab" for e in entries)
+              and str(entries[0].get("url") or "").startswith("https://") and _depth == 0):
+            # Csatornalink: a fülek (Videók, Shorts, Élő) közül a Videók listáját nyitja meg.
+            on_log("Csatorna: a „Videók” fül betöltése.")
+            return analyze(str(entries[0]["url"]), cancel=cancel, allow_playlist=True,
+                           cookies_browser=cookies_browser, on_log=on_log, _depth=1)
         else:
             playlist = PlaylistInfo.from_json(data, url)
             if not playlist.entries:
@@ -390,7 +402,7 @@ class DownloadTask:
     def run(self) -> DownloadResult:
         opts = self.opts
         opts.validate()
-        require("yt-dlp")
+        tool_cmd("yt-dlp")
         require("ffmpeg")
         dest = Path(opts.dest)
         work = job_workdir(dest, self.key)
@@ -460,7 +472,7 @@ class DownloadTask:
     # -- médialetöltés --------------------------------------------------------- #
     def _download_media(self, work: Path) -> list[Path]:
         opts = self.opts
-        cmd = [str(require("yt-dlp"))] + media_args(opts, work, tools())
+        cmd = tool_cmd("yt-dlp") + media_args(opts, work, tools())
         self.on_log("Letöltés indítása: " + (opts.title or opts.url))
         proc = self._spawn(cmd, work)
         outputs: list[Path] = []
@@ -606,7 +618,7 @@ class DownloadTask:
             self._check()
             self._emit(stage="subtitles", text="Feliratok letöltése…", percent=None, speed=None, eta=None)
             before = {p.name for p in work.iterdir()}
-            cmd = [str(require("yt-dlp"))] + subtitle_args(
+            cmd = tool_cmd("yt-dlp") + subtitle_args(
                 opts, work, tools(), langs=step["langs"], manual=step["manual"], auto=step["auto"],
                 suffix=step["suffix"])
             proc = self._spawn(cmd, work)

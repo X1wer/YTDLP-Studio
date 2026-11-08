@@ -165,18 +165,23 @@ def install_release(release: Release, exe_path: Path, current_version: str = "",
         notify(f"Letöltés: yt-dlp {release.tag} ({release.channel})")
         _download_verified(release.asset_url, temp, expected, notify)
         _run_version(temp)
+        # A jelenlegi verzió előbb ideiglenes helyre kerül; a korábbi mentés csak
+        # sikeres telepítés után cserélődik, így egy hibás frissítés nem törli.
+        rollback = exe_path.with_name(exe_path.name + ".rollback")
         had_old = exe_path.exists()
         if had_old:
-            os.replace(exe_path, backup)
-            backup.with_suffix(".bak.version").write_text(current_version or "ismeretlen", encoding="utf-8")
+            os.replace(exe_path, rollback)
         try:
             os.replace(temp, exe_path)
             version = _run_version(exe_path)
         except Exception:
             exe_path.unlink(missing_ok=True)
             if had_old:
-                os.replace(backup, exe_path)
+                os.replace(rollback, exe_path)
             raise
+        if had_old:
+            os.replace(rollback, backup)
+            backup.with_suffix(".bak.version").write_text(current_version or "ismeretlen", encoding="utf-8")
         notify(f"Frissítés kész: {version}")
         return version
     finally:

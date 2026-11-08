@@ -22,11 +22,11 @@ _WIN_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
 
 def validate_url(url: str) -> str:
     url = (url or "").strip()
-    if any(c in url for c in "\n\r\t\0 "):
-        raise ValueError("Az URL nem tartalmazhat szóközt vagy vezérlőkaraktert.")
     value = urlparse(url)
     if value.scheme not in {"https", "http"} or not value.netloc:
         raise ValueError("Adj meg egy érvényes, http:// vagy https:// kezdetű linket.")
+    if any(c in url for c in "\n\r\t\0 "):
+        raise ValueError("A link nem tartalmazhat szóközt vagy sortörést.")
     if value.username or value.password:
         raise ValueError("Felhasználónevet vagy jelszót tartalmazó link nem támogatott.")
     if len(url) > 4096:

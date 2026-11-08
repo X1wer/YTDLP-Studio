@@ -229,6 +229,8 @@ class VideoInfo:
     formats: list[dict] = field(default_factory=list)
     preview_url: str = ""
     playlist_hint: bool = False
+    info_json: str = ""          # az elemzés mentett JSON-ja (újrahasznosításhoz)
+    info_expires: float = 0.0     # a benne lévő letöltési linkek lejárata (Unix-idő)
 
     @property
     def is_youtube(self) -> bool:
@@ -511,6 +513,8 @@ class DownloadOptions:
     duration: float | None = None
     rate_limit: str = ""
     cookies_browser: str = ""
+    info_json: str = ""            # friss elemzés JSON-ja: nem kell újra lekérni a YouTube-ot
+    polite: bool = False            # lejátszási lista: kíméletes tempó (szünetek a kérések között)
 
     @property
     def is_clip(self) -> bool:
@@ -565,6 +569,8 @@ class DownloadOptions:
                 raise ValueError("Érvénytelen nyelvkód.")
         if self.rate_limit and not re.fullmatch(r"\d+(\.\d+)?[KMG]?", self.rate_limit, re.I):
             raise ValueError("Érvénytelen sebességkorlát (példa: 5M vagy 800K).")
+        if self.info_json and not Path(self.info_json).is_file():
+            raise ValueError("Az elemzés adatai már nem érhetők el; elemezd újra a videót.")
         if self.cookies_browser and not re.fullmatch(r"[a-z]{3,12}", self.cookies_browser):
             raise ValueError("Érvénytelen böngészőnév.")
         dest = Path(self.dest)
@@ -710,6 +716,18 @@ def audio_sort(opts: DownloadOptions) -> list[str]:
     return []
 
 
+POLITE_ARGS = ["--sleep-requests", "0.75", "--sleep-interval", "3", "--max-sleep-interval", "8",
+               "--sleep-subtitles", "3"]
+
+
+def source_args(opts: DownloadOptions) -> list[str]:
+    """A letöltés forrása: friss elemzés JSON-ja (nincs újabb YouTube-lekérés) vagy a link."""
+    extra = POLITE_ARGS if opts.polite else []
+    if opts.info_json:
+        return extra + ["--load-info-json", str(Path(opts.info_json))]
+    return extra + ["--", validate_url(opts.url)]
+
+
 def media_args(opts: DownloadOptions, workdir: Path, tools: Tools | None = None) -> list[str]:
     """A fő (videó vagy hang) letöltés argumentumai az ideiglenes munkamappába."""
     opts.validate(create_dest=False)
@@ -752,7 +770,7 @@ def media_args(opts: DownloadOptions, workdir: Path, tools: Tools | None = None)
             args.append("--audio-multistreams")
         if opts.embed_thumbnail and container in ("mp4", "mkv"):
             args += ["--embed-thumbnail", "--convert-thumbnails", "jpg"]
-    return args + ["--", validate_url(opts.url)]
+    return args + source_args(opts)
 
 
 def subtitle_args(opts: DownloadOptions, workdir: Path, tools: Tools | None = None, *,
@@ -778,7 +796,7 @@ def subtitle_args(opts: DownloadOptions, workdir: Path, tools: Tools | None = No
         args += ["--sub-format", "srt/vtt/best", "--convert-subs", "srt"]
     else:
         args += ["--sub-format", "vtt/srt/best", "--convert-subs", "vtt"]
-    return args + ["--", validate_url(opts.url)]
+    return args + source_args(opts)
 
 
 def subtitle_plan(opts: DownloadOptions) -> list[dict]:

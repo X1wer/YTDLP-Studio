@@ -10,6 +10,9 @@ class FriendlyError:
     title: str
     message: str
     retryable: bool = True
+    # "rate_limit": a szolgáltató korlátozza a kéréseket (robotellenőrzés, 429) –
+    # ilyenkor a sor automatikusan szünetel, és később újrapróbálkozik.
+    kind: str = ""
 
 
 _RULES: list[tuple[str, FriendlyError]] = [
@@ -35,8 +38,11 @@ _RULES: list[tuple[str, FriendlyError]] = [
         "a program egy bejelentkezett böngésző sütijeit használja.")),
     (r"Sign in to confirm you.?re not a bot|confirm you are not a robot|LOGIN_REQUIRED", FriendlyError(
         "A YouTube ellenőrzést kér",
-        "A YouTube ideiglenesen robotnak nézte a kéréseket. Várj néhány percet, frissítsd a "
-        "yt-dlp-t (Eszközök menü), vagy használd egy bejelentkezett böngésző sütijeit.")),
+        "A YouTube rövid időn belül túl sok kérést kapott erről a hálózatról, ezért ideiglenesen "
+        "robotnak nézte őket. Ez általában néhány perc–óra alatt magától megszűnik: a program "
+        "a letöltési sort ilyenkor automatikusan szünetelteti, majd újrapróbálkozik. Ha tartósan "
+        "fennáll, frissítsd a yt-dlp-t (Eszközök menü), vagy használd egy bejelentkezett böngésző "
+        "sütijeit (Beállítások).", kind="rate_limit")),
     (r"members.?only|Join this channel", FriendlyError(
         "Csak csatornatagoknak",
         "Ez a videó csak a csatorna fizetős tagjai számára érhető el.", False)),
@@ -47,7 +53,7 @@ _RULES: list[tuple[str, FriendlyError]] = [
         "Túl sok kérés (429)",
         "A szolgáltató átmenetileg korlátozza a kéréseket. Várj néhány percet, majd próbáld újra. "
         "A YouTube automatikusan fordított feliratainál ez gyakori: ilyenkor válaszd az eredeti nyelvű "
-        "(vagy automatikus) feliratot.")),
+        "(vagy automatikus) feliratot.", kind="rate_limit")),
     (r"HTTP Error 403|Forbidden", FriendlyError(
         "Hozzáférés megtagadva (403)",
         "A szerver elutasította a letöltést. Ez gyakran a yt-dlp elavultságát jelzi: frissítsd az "

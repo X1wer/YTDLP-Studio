@@ -546,6 +546,9 @@ class CheckDelegate(QStyledItemDelegate):
 
     def helpEvent(self, event, view, option, index) -> bool:  # noqa: N802
         if event.type() == QEvent.Type.ToolTip:
+            if not index.isValid():
+                QToolTip.hideText()
+                return True
             text = index.data(Qt.ItemDataRole.ToolTipRole) or f"{index.data()}\n{index.data(DETAIL_ROLE)}"
             QToolTip.showText(event.globalPos(), text, view)
             return True

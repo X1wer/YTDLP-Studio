@@ -38,7 +38,7 @@ tölthetsz le videót, zenét vagy feliratot – akár csak egy kiválasztott r�
 
 ## Indítás (portable verzió)
 
-1. Töltsd le a `YTDLPStudio-0.2.0-Windows-x64-portable.zip` fájlt.
+1. Töltsd le a `YTDLPStudio-0.2.1-Windows-x64-portable.zip` fájlt.
 2. Csomagold ki egy **írható** mappába (pl. `Dokumentumok\YTDLPStudio` vagy pendrive).
    Ne a ZIP-ből közvetlenül indítsd.
 3. Indítsd el a `YTDLPStudio.exe` fájlt. (Az első indításkor a Windows SmartScreen
@@ -79,7 +79,7 @@ Billentyűk: `Enter` – elemzés, `Ctrl+L` – linkmező, `Ctrl+Enter` – Let�
 | Üzenet | Teendő |
 |---|---|
 | *Hozzáférés megtagadva (403)* / *YouTube-ellenőrzés sikertelen* | **Eszközök és frissítés** → yt-dlp frissítése (szükség esetén Nightly csatorna). |
-| *A YouTube ellenőrzést kér* (bot-ellenőrzés) | Várj néhány percet; ha ismétlődik, a Beállításokban válassz böngészősütiket (Firefox ajánlott). |
+| *A YouTube ellenőrzést kér* (robotellenőrzés) | A program magától kivár (lásd lent); ha tartósan fennáll, frissítsd a yt-dlp-t, vagy a Beállításokban válassz böngészősütiket (Firefox ajánlott). |
 | *Túl sok kérés (429)* automatikusan fordított feliratnál | A YouTube jelenleg gyakran elutasítja a fordított feliratok letöltését. Válaszd az eredeti nyelvű feliratot, vagy próbáld később. A videó ettől még letöltődik. |
 | *Korhatáros videó* | Bejelentkezett böngésző sütijei szükségesek (Beállítások → Böngészősütik). |
 | *A kért formátum nem érhető el* | Válassz „Legjobb elérhető” minőséget vagy másik formátumot. |
@@ -87,6 +87,24 @@ Billentyűk: `Enter` – elemzés, `Ctrl+L` – linkmező, `Ctrl+Enter` – Let�
 | *Nincs írási jogosultság* | Válassz másik mentési mappát, vagy ne a `Program Files` mappából futtasd. |
 
 Részletek: **Napló** gomb, illetve `data\logs\ytdlp-studio.log`.
+
+### Robotellenőrzés és „túl sok kérés” – mit csinál a program?
+
+A YouTube hálózatonként (IP-címenként) korlátozza, hány kérést fogad el rövid idő alatt.
+Sok egymás utáni elemzés vagy letöltés után ideiglenesen „robotellenőrzést” kér, vagy
+429-es („túl sok kérés”) hibát ad. Ez általában néhány perc–óra alatt magától megszűnik.
+
+- **Kevesebb kérés:** egy letöltés – feliratokkal együtt – csak az elemzéskor kérdezi le a
+  YouTube-ot; maga a letöltés az elemzés adataiból dolgozik. Lejátszási listáknál a program
+  rövid szüneteket tart a kérések között.
+- **Automatikus várakozás:** korlátozáskor a letöltési sor 15 percig nem indít új letöltést
+  (a panelen visszaszámláló és „Folytatás most” gomb látszik), utána magától folytatódik, és
+  az érintett letöltést egyszer újrapróbálja.
+- **Ha tartósan fennáll:** frissítsd a yt-dlp-t (Eszközök és frissítés), vagy a
+  Beállításokban kapcsold be a böngészősütiket (egy bejelentkezett Firefoxból). A sütiket a
+  program nem menti el, csak letöltéskor olvassa. Figyelem: nagyon sok letöltés
+  bejelentkezett fiókkal a fiók korlátozásával is járhat.
+- A program nem kerüli meg a robotellenőrzést, csak kivár és kevesebb kérést küld.
 
 ## Ismert korlátozások
 

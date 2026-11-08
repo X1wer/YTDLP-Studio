@@ -186,6 +186,30 @@ class ArgumentTest(unittest.TestCase):
                     DownloadOptions(url=URL, dest=dest, **kwargs).validate()
             DownloadOptions(url=URL, dest=dest, start=1, end=2).validate()
 
+    def test_saved_analysis_and_polite_mode(self):
+        with TemporaryDirectory() as d:
+            info_json = Path(d) / "a.json"
+            info_json.write_text("{}", encoding="utf-8")
+            opts = DownloadOptions(url=URL, dest=d, info_json=str(info_json))
+            args = media_args(opts, Path(d))
+            self.assertEqual(args[-2:], ["--load-info-json", str(info_json)])
+            self.assertNotIn(URL, args)
+            subs = subtitle_args(opts.with_changes(subtitles=[Subtitle("en", "manual")]), Path(d),
+                                 langs=["en"], manual=True, auto=False)
+            self.assertIn("--load-info-json", subs)
+            polite = media_args(DownloadOptions(url=URL, dest=d, polite=True), Path(d))
+            self.assertIn("--sleep-requests", polite)
+            self.assertNotIn("--sleep-requests", media_args(DownloadOptions(url=URL, dest=d), Path(d)))
+            info_json.unlink()
+            with self.assertRaises(ValueError):
+                opts.validate()
+
+    def test_rate_limit_errors_are_classified(self):
+        from ytstudio.errors import explain
+        self.assertEqual(explain("ERROR: [youtube] x: Sign in to confirm you're not a bot").kind, "rate_limit")
+        self.assertEqual(explain("HTTP Error 429: Too Many Requests").kind, "rate_limit")
+        self.assertEqual(explain("HTTP Error 403: Forbidden").kind, "")
+
     def test_section_open_end(self):
         self.assertEqual(section_arg(DownloadOptions(url=URL, dest=".", start=90)), "*00:01:30-inf")
 

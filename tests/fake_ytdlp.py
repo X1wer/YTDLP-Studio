@@ -37,6 +37,19 @@ if "--dump-single-json" in args:
     print(Path(os.environ["FAKE_JSON"]).read_text(encoding="utf-8"))
     sys.exit(0)
 
+# Mentett elemzés használata: naplózza, és szükség esetén lejárt linket szimulál.
+if "--load-info-json" in args:
+    log = os.environ.get("FAKE_CALLS")
+    if log:
+        with open(log, "a", encoding="utf-8") as handle:
+            handle.write("load-info-json\n")
+    if os.environ.get("FAKE_STALE"):
+        print("ERROR: unable to download video data: HTTP Error 403: Forbidden", flush=True)
+        sys.exit(1)
+elif os.environ.get("FAKE_CALLS"):
+    with open(os.environ["FAKE_CALLS"], "a", encoding="utf-8") as handle:
+        handle.write("fresh\n")
+
 work = Path(opt("-P"))
 templates = [args[i + 1] for i, a in enumerate(args) if a == "-o"]
 media_template = next(t for t in templates if not t.startswith("subtitle:"))

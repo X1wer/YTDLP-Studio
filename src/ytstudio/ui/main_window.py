@@ -696,9 +696,14 @@ class MainWindow(QMainWindow):
         if details:
             actions.append(("Részletek", lambda: DetailsDialog(friendly.title, friendly.message, details,
                                                                   parent=self).exec()))
-        if "frissítsd" in friendly.message:
+        if friendly.kind == "rate_limit":
+            # A sorban várakozó letöltések se terheljék tovább a szolgáltatót.
+            self.manager.start_cooldown()
+            actions.append(("Böngészősütik…", self._show_settings))
+        elif "frissítsd" in friendly.message:
             actions.append(("yt-dlp frissítése", self._show_tools))
-        self.banner.show_message("error", friendly.title, friendly.message, actions)
+        self.banner.show_message("warning" if friendly.kind == "rate_limit" else "error",
+                                 friendly.title, friendly.message, actions)
 
     def _load_full_playlist(self) -> None:
         if self.info is None:
@@ -1192,7 +1197,8 @@ class MainWindow(QMainWindow):
             and self.embed_thumbnail.isEnabled(), embed_chapters=self.embed_chapters.isChecked(),
             start=start, end=end, accurate_cut=self.accurate.isChecked(),
             cut_method=self.cut_method.value() or "sections", title=info.title, duration=info.duration,
-            rate_limit=s.rate_limit, cookies_browser=s.cookies_browser)
+            rate_limit=s.rate_limit, cookies_browser=s.cookies_browser,
+            info_json=engine.reusable_info_json(info))
         if validate:
             opts.validate()
         return opts
@@ -1230,7 +1236,7 @@ class MainWindow(QMainWindow):
                 embed_chapters=self.embed_chapters.isChecked(),
                 filename_prefix=f"{entry.index:0{width}d} - " if self.pl_numbering.isChecked() else "",
                 title=entry.title, duration=entry.duration, rate_limit=s.rate_limit,
-                cookies_browser=s.cookies_browser)
+                cookies_browser=s.cookies_browser, polite=True)
             opts.validate()
             result.append((opts, entry.title))
         return result

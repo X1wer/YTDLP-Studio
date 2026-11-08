@@ -304,7 +304,49 @@ def analyze(url: str, *, cancel: threading.Event | None = None, allow_playlist: 
         raise OperationError(FriendlyError(
             "DRM-védett tartalom",
             "A tartalom másolásvédelemmel (DRM) rendelkezik, ezért a program nem tölti le.", False))
+    _store_info_json(info, data)
     return info
+
+
+INFO_CACHE_MAX_AGE = 12 * 3600
+INFO_REUSE_MARGIN = 30 * 60
+
+
+def _store_info_json(info: VideoInfo, data: dict) -> None:
+    """Elmenti az elemzést, hogy a letöltés ne kérje le újra a videóoldalt.
+
+    Így egy letöltés egyetlen YouTube-lekérdezésbe kerül (az elemzésbe), ami
+    csökkenti a robotellenőrzés esélyét. A letöltési linkek lejárnak (YouTube:
+    kb. 6 óra), ezért a lejárat is eltárolódik; utána friss lekérés történik.
+    """
+    folder = data_dir() / "cache" / "info"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        now = time.time()
+        for old in folder.glob("*.json"):
+            if now - old.stat().st_mtime > INFO_CACHE_MAX_AGE:
+                old.unlink(missing_ok=True)
+        name = re.sub(r"[^A-Za-z0-9_-]", "_", info.video_id or "video")[:64] + f"-{int(now)}.json"
+        path = folder / name
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        return
+    expires = [int(m) for f in data.get("formats") or [] if isinstance(f, dict)
+               for m in re.findall(r"[?&/]expire[=/](\d{9,11})", str(f.get("url") or ""))]
+    info.info_json = str(path)
+    info.info_expires = float(min(expires)) if expires else now + 3600
+
+
+def reusable_info_json(info: VideoInfo) -> str:
+    """Az elemzés JSON-ja, ha a benne lévő linkek még legalább fél óráig érvényesek."""
+    if info.info_json and Path(info.info_json).is_file() and time.time() < info.info_expires - INFO_REUSE_MARGIN:
+        return info.info_json
+    return ""
+
+
+def _stale_source(details: str) -> bool:
+    """A mentett elemzés linkje lejárt vagy már nem érvényes (friss lekérés szükséges)."""
+    return bool(re.search(r"HTTP Error (403|404|410)|expired|Requested format is not available", details, re.I))
 
 
 # --------------------------------------------------------------------------- #
@@ -410,6 +452,8 @@ class DownloadTask:
 
     # -- futtatás ------------------------------------------------------------ #
     def run(self) -> DownloadResult:
+        if self.opts.info_json and not Path(self.opts.info_json).is_file():
+            self.opts = self.opts.with_changes(info_json="")  # pl. régi elemzés újrapróbálásakor
         opts = self.opts
         opts.validate()
         tool_cmd("yt-dlp")
@@ -422,7 +466,14 @@ class DownloadTask:
         self._emit(stage="starting", text="Videóadatok lekérése…", percent=None)
         media: list[Path] = []
         if opts.mode != "subtitles":
-            media = self._download_media(work)
+            try:
+                media = self._download_media(work)
+            except OperationError as exc:
+                if not self.opts.info_json or not _stale_source(exc.details):
+                    raise
+                self.on_log("A mentett elemzés letöltési linkjei már nem érvényesek, friss lekérés…")
+                self.opts = self.opts.with_changes(info_json="")
+                media = self._download_media(work)
             self._check()
             if opts.is_clip and opts.cut_method == "full":
                 media = [self._local_cut(path) for path in media]
@@ -620,6 +671,28 @@ class DownloadTask:
                       key=lambda p: p.stat().st_size, reverse=True)
 
     # -- feliratok ------------------------------------------------------------- #
+    def _subtitle_attempt(self, work: Path, step: dict, opts: DownloadOptions) -> tuple[int, list[str], list[Path]]:
+        before = {p.name for p in work.iterdir()}
+        cmd = tool_cmd("yt-dlp") + subtitle_args(
+            opts, work, tools(), langs=step["langs"], manual=step["manual"], auto=step["auto"],
+            suffix=step["suffix"])
+        proc = self._spawn(cmd, work)
+        messages: list[str] = []
+        try:
+            for line in proc.lines():
+                if self.cancel_event.is_set():
+                    break
+                if line.startswith(("ERROR:", "WARNING:")):
+                    messages.append(line)
+                self.on_log(line)
+            code = proc.wait()
+        finally:
+            self._release(proc)
+        self._check()
+        new_files = [p for p in work.iterdir() if p.is_file() and p.name not in before
+                     and p.suffix.lower() in (".srt", ".vtt", ".ass", ".ttml", ".json3", ".srv3")]
+        return code, messages, new_files
+
     def _download_subtitles(self, work: Path, result: DownloadResult) -> list[tuple[Path, Subtitle | None, str]]:
         opts = self.opts
         found: list[tuple[Path, Subtitle | None, str]] = []
@@ -627,25 +700,13 @@ class DownloadTask:
         for step in plan:
             self._check()
             self._emit(stage="subtitles", text="Feliratok letöltése…", percent=None, speed=None, eta=None)
-            before = {p.name for p in work.iterdir()}
-            cmd = tool_cmd("yt-dlp") + subtitle_args(
-                opts, work, tools(), langs=step["langs"], manual=step["manual"], auto=step["auto"],
-                suffix=step["suffix"])
-            proc = self._spawn(cmd, work)
-            messages: list[str] = []
-            try:
-                for line in proc.lines():
-                    if self.cancel_event.is_set():
-                        break
-                    if line.startswith(("ERROR:", "WARNING:")):
-                        messages.append(line)
-                    self.on_log(line)
-                code = proc.wait()
-            finally:
-                self._release(proc)
-            self._check()
-            new_files = [p for p in work.iterdir() if p.is_file() and p.name not in before
-                         and p.suffix.lower() in (".srt", ".vtt", ".ass", ".ttml", ".json3", ".srv3")]
+            code, messages, new_files = self._subtitle_attempt(work, step, opts)
+            joined = "\n".join(messages)
+            if code != 0 and opts.info_json and "429" not in joined and _stale_source(joined):
+                self.on_log("A mentett elemzés felirat-linkjei lejártak, friss lekérés…")
+                opts = self.opts = self.opts.with_changes(info_json="")
+                code, messages, more = self._subtitle_attempt(work, step, opts)
+                new_files += more
             manual_langs = {s.language for s in opts.subtitles if s.group == "manual"}
             for path in sorted(new_files):
                 lang = self._lang_of(path, step["langs"], step["suffix"])

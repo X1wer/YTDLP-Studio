@@ -9,14 +9,14 @@ import time
 import uuid
 
 from PySide6.QtCore import (QAbstractListModel, QEvent, QModelIndex, QObject, QPoint, QRect, QRectF,
-                            QSize, Qt, Signal)
+                            QSize, Qt, QTimer, Signal)
 from PySide6.QtGui import QAction, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QListView, QMenu, QStyle,
                                QStyledItemDelegate, QToolTip, QVBoxLayout, QWidget)
 
 from . import icons, theme
 from .logbus import log
-from .widgets import Card, button, label
+from .widgets import Banner, Card, button, label
 from ..core import DownloadOptions, fmt_duration, fmt_size
 from ..engine import Cancelled, DownloadResult, DownloadTask, OperationError, Progress, cleanup_workdir
 from ..errors import FriendlyError, explain
@@ -38,6 +38,8 @@ class Job:
     error: FriendlyError | None = None
     details: str = ""
     immediate: bool = False
+    note: str = ""
+    auto_retries: int = 0
     started: float = 0.0
     finished: float = 0.0
     task: DownloadTask | None = None
@@ -59,7 +61,7 @@ class Job:
     def status_line(self) -> str:
         p = self.progress
         if self.status == "queued":
-            return "Várakozik · " + self.summary
+            return "Várakozik · " + (self.note or self.summary)
         if self.status == "running":
             parts = [p.text or "Folyamatban…"]
             if p.percent is not None and p.stage == "downloading":
@@ -82,6 +84,10 @@ class Job:
         return STATUS_TEXT.get(self.status, self.status)
 
 
+COOLDOWN_SECONDS = 15 * 60
+MAX_AUTO_RETRIES = 1
+
+
 class DownloadManager(QObject):
     """A sor végrehajtása háttérszálakon; a felület csak jelzéseket kap."""
 
@@ -89,6 +95,7 @@ class DownloadManager(QObject):
     jobChanged = Signal(object)
     jobRemoved = Signal(object)
     jobFinished = Signal(object)
+    cooldownChanged = Signal()
     _progress = Signal(object, object)
     _finished = Signal(object, str, object)
 
@@ -97,6 +104,10 @@ class DownloadManager(QObject):
         self.jobs: list[Job] = []
         self.max_parallel = max_parallel
         self.paused = False
+        self.cooldown_until = 0.0
+        self._cooldown_timer = QTimer(self)
+        self._cooldown_timer.setSingleShot(True)
+        self._cooldown_timer.timeout.connect(self.resume_now)
         self._ids = itertools.count(1)
         self._progress.connect(self._on_progress)
         self._finished.connect(self._on_finished)
@@ -127,15 +138,44 @@ class DownloadManager(QObject):
         self.schedule()
         return job
 
+    def in_cooldown(self) -> bool:
+        return time.time() < self.cooldown_until
+
+    def cooldown_left(self) -> float:
+        return max(0.0, self.cooldown_until - time.time())
+
+    def start_cooldown(self, seconds: float = COOLDOWN_SECONDS) -> None:
+        """A szolgáltató korlátozta a kéréseket: a sor egy ideig nem indít új letöltést.
+
+        Nem kerül meg semmilyen ellenőrzést; egyszerűen kivár, hogy ne terhelje tovább
+        a szolgáltatót, és ne hosszabbítsa meg a korlátozást.
+        """
+        self.cooldown_until = max(self.cooldown_until, time.time() + seconds)
+        self._cooldown_timer.start(int((self.cooldown_until - time.time()) * 1000) + 500)
+        log(f"A szolgáltató korlátozza a kéréseket: a sor {seconds / 60:.0f} percig szünetel, "
+            "utána automatikusan folytatódik.")
+        self.cooldownChanged.emit()
+
+    def resume_now(self) -> None:
+        was = self.in_cooldown() or self.cooldown_until > 0
+        self.cooldown_until = 0.0
+        self._cooldown_timer.stop()
+        if was:
+            log("A letöltési sor folytatódik.")
+        self.cooldownChanged.emit()
+        self.schedule()
+
     def schedule(self) -> None:
+        blocked = self.paused or self.in_cooldown()
         for job in list(self.jobs):
             if job.status != "queued":
                 continue
-            if job.immediate or (not self.paused and len(self.running()) < self.max_parallel):
+            if job.immediate or (not blocked and len(self.running()) < self.max_parallel):
                 self._start(job)
 
     def _start(self, job: Job) -> None:
         job.status = "running"
+        job.note = ""
         job.started = time.time()
         job.error, job.details, job.warnings, job.files = None, "", [], []
         job.progress = Progress(stage="starting", text="Indítás…")
@@ -185,6 +225,13 @@ class DownloadManager(QObject):
             log(f"HIBA ({job.title}): {error.friendly.title} – {error.friendly.message}")
             if error.details:
                 log(error.details)
+            if error.friendly.kind == "rate_limit":
+                self.start_cooldown()
+                if job.auto_retries < MAX_AUTO_RETRIES and job in self.jobs:
+                    job.auto_retries += 1
+                    job.status = "queued"
+                    job.note = "a YouTube-korlátozás feloldása után automatikusan újrapróbálja"
+                    job.progress = Progress()
         if job not in self.jobs:
             self._cleanup_later(job)
         self.jobChanged.emit(job)
@@ -425,7 +472,11 @@ class JobDelegate(QStyledItemDelegate):
 
     def helpEvent(self, event, view, option, index) -> bool:  # noqa: N802
         if event.type() == QEvent.Type.ToolTip:
-            job: Job = index.data(Qt.ItemDataRole.UserRole)
+            # A Qt a lista üres része fölött érvénytelen indexszel is meghívja.
+            job: Job | None = index.data(Qt.ItemDataRole.UserRole) if index.isValid() else None
+            if job is None:
+                QToolTip.hideText()
+                return True
             rect = option.rect.adjusted(2, 4, -2, -4)
             for _action, _icon, tip, r in self._buttons(rect, job):
                 if r.contains(event.pos()):
@@ -469,6 +520,10 @@ class QueuePanel(Card):
         self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.view.customContextMenuRequested.connect(self._menu)
         self.delegate.actionTriggered.connect(self.actionRequested)
+        # Várakozás a szolgáltató korlátozása után (robotellenőrzés / 429).
+        self.cooldown = Banner()
+        self.cooldown.close_button.hide()
+        self.body.addWidget(self.cooldown)
         self.body.addWidget(self.view, 1)
         self.empty = QWidget()
         self.empty.setObjectName("transparent")
@@ -495,11 +550,34 @@ class QueuePanel(Card):
         self.body.addLayout(footer)
         for sig in (manager.jobAdded, manager.jobRemoved, manager.jobChanged):
             sig.connect(self._update)
+        manager.cooldownChanged.connect(self._update_cooldown)
         theme.manager.changed.connect(self.view.viewport().update)
-        from PySide6.QtCore import QTimer
         self._anim = QTimer(self)
         self._anim.timeout.connect(self._tick)
         self._anim.start(60)
+        self._clock = QTimer(self)
+        self._clock.timeout.connect(self._update_cooldown)
+        self._update()
+        self._update_cooldown()
+
+    def _update_cooldown(self) -> None:
+        left = self.manager.cooldown_left()
+        if left <= 0:
+            self._clock.stop()
+            self.cooldown.hide()
+            self._update()
+            return
+        minutes, seconds = divmod(int(left), 60)
+        text = ("A YouTube ideiglenesen korlátozza a kéréseket (robotellenőrzés vagy „túl sok kérés”). "
+                f"A sor {minutes}:{seconds:02d} múlva magától folytatódik; addig nem indul új letöltés, "
+                "hogy a korlátozás ne hosszabbodjon meg.")
+        if not self.cooldown.isVisible():
+            self.cooldown.show_message("warning", "Várakozás a YouTube-korlátozás miatt", text,
+                                       [("Folytatás most", self.manager.resume_now)])
+        else:
+            self.cooldown.message.setText(text)
+        if not self._clock.isActive():
+            self._clock.start(1000)
         self._update()
 
     def _tick(self) -> None:
@@ -530,6 +608,8 @@ class QueuePanel(Card):
             parts.append(f"{counts['error']} hibás")
         if self.manager.paused:
             parts.append("szünetel")
+        elif self.manager.in_cooldown():
+            parts.append("várakozik")
         self.summary.setText(" · ".join(parts))
         self.clear_button.setEnabled(any(counts.get(s) for s in ("done", "error", "cancelled")))
         self.retry_button.setEnabled(any(counts.get(s) for s in ("error", "cancelled")))

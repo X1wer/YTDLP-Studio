@@ -146,6 +146,36 @@ class EngineTest(unittest.TestCase):
             duration = float(self.probe(video)["format"]["duration"])
             self.assertAlmostEqual(duration, 3.0, delta=0.3)
 
+    def test_analysis_is_reused_without_new_youtube_request(self):
+        os.environ["FAKE_JSON"] = str(FIXTURES / "youtube_multi_audio.json")
+        with TemporaryDirectory() as d:
+            calls = Path(d) / "calls.txt"
+            info = engine.analyze(URL)
+            # Hamarosan lejáró linkeket nem szabad újrahasznosítani.
+            self.assertTrue(Path(info.info_json).is_file())
+            info.info_expires = time.time() + 600
+            self.assertEqual(engine.reusable_info_json(info), "")
+            info.info_expires = time.time() + 3 * 3600
+            reuse = engine.reusable_info_json(info)
+            self.assertEqual(reuse, info.info_json)
+            os.environ["FAKE_CALLS"] = str(calls)
+            opts = DownloadOptions(url=URL, dest=d, subtitles=[Subtitle("en", "manual")], info_json=reuse)
+            engine.DownloadTask(opts, "k8").run()
+            self.assertEqual(calls.read_text().split(), ["load-info-json", "load-info-json"])
+
+    def test_stale_analysis_falls_back_to_fresh_request(self):
+        with TemporaryDirectory() as d:
+            stale = Path(d) / "info.json"
+            stale.write_text("{}", encoding="utf-8")
+            calls = Path(d) / "calls.txt"
+            os.environ.update(FAKE_STALE="1", FAKE_CALLS=str(calls))
+            log = []
+            result = engine.DownloadTask(DownloadOptions(url=URL, dest=d, info_json=str(stale)), "k9",
+                                         on_log=log.append).run()
+            self.assertTrue(result.main_file.exists())
+            self.assertEqual(calls.read_text().split(), ["load-info-json", "fresh"])
+            self.assertTrue(any("friss lekérés" in line for line in log))
+
 
 if __name__ == "__main__":
     unittest.main()

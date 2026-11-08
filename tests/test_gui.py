@@ -7,9 +7,13 @@ from unittest.mock import patch
 
 from _support import fixture
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QEvent, QModelIndex, QPoint, Qt
+from PySide6.QtGui import QHelpEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton, QStyleOptionViewItem
+
+from ytstudio.engine import OperationError
+from ytstudio.errors import explain
 
 from ytstudio.core import DownloadOptions, PlaylistEntry, PlaylistInfo, VideoInfo
 from ytstudio.engine import Progress
@@ -219,6 +223,46 @@ class GuiTest(unittest.TestCase):
         w._job_action("remove", job)
         self.assertEqual(manager.jobs, [])
         self.assertTrue(w.queue.empty.isVisible())
+
+    def test_tooltip_over_empty_list_area_does_not_crash(self):
+        # Regresszió (0.2.0): a lista üres része fölötti buboréksúgó AttributeError-t dobott.
+        w = self.window
+        with patch.object(w.manager, "_start"):
+            w.manager.add(DownloadOptions(url=URL, dest=self.tmp.name), "Teszt")
+        for view in (w.queue.view, w.audio_list.view):
+            event = QHelpEvent(QEvent.Type.ToolTip, QPoint(5, 5000), view.viewport().mapToGlobal(QPoint(5, 5000)))
+            option = QStyleOptionViewItem()
+            self.assertTrue(view.itemDelegate().helpEvent(event, view, option, QModelIndex()))
+
+    def test_rate_limit_pauses_queue_and_retries_once(self):
+        w = self.window
+        manager = w.manager
+        def fake_start(job):
+            job.status = "running"
+        with patch.object(manager, "_start", side_effect=fake_start) as start:
+            first = manager.add(DownloadOptions(url=URL, dest=self.tmp.name), "Első")
+            second = manager.add(DownloadOptions(url=URL, dest=self.tmp.name), "Második")
+            self.assertEqual((first.status, second.status), ("running", "queued"))
+            start.reset_mock()
+            bot = OperationError(explain("ERROR: [youtube] x: Sign in to confirm you're not a bot"), "bot")
+            manager._on_finished(first, "error", bot)
+            self.assertTrue(manager.in_cooldown())
+            self.assertEqual((first.status, first.auto_retries), ("queued", 1))
+            self.assertIn("automatikusan újrapróbálja", first.status_line())
+            start.assert_not_called()  # várakozás alatt nem indul új letöltés
+            app.processEvents()
+            self.assertTrue(w.queue.cooldown.isVisible())
+            self.assertIn("Folytatás most", [b.text() for b in w.queue.cooldown.findChildren(QPushButton)])
+            manager.resume_now()
+            self.assertFalse(manager.in_cooldown())
+            self.assertEqual([c.args[0] for c in start.call_args_list], [first])  # az újrapróbálás indul
+            # Második korlátozás ugyanannál a feladatnál: már nem próbálja újra automatikusan.
+            manager._on_finished(first, "error", bot)
+            self.assertEqual(first.status, "error")
+            self.assertEqual(second.status, "queued")
+            manager.resume_now()
+            self.assertFalse(w.queue.cooldown.isVisible())
+            self.assertEqual(second.status, "running")
 
     def test_theme_switch_at_runtime(self):
         w = self.window

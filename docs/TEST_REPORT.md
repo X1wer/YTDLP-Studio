@@ -1,4 +1,23 @@
-# YTDLP Studio 0.2.0 – tesztjelentés
+# YTDLP Studio – tesztjelentés
+
+## 0.2.1 kiegészítés (2026-11-08)
+
+Felhasználói hibajelentés: „AttributeError: 'NoneType' object has no attribute 'status'”
+egy YouTube Shorts videó letöltésekor. A napló (`data\logs\ytdlp-studio.log`) szerint a
+hiba a letöltési lista buboréksúgójában keletkezett, amikor az egérmutató a lista üres
+része fölött állt meg (a Qt ilyenkor érvénytelen indexszel kéri a súgót). A letöltés
+sikeres volt. Javítva mindkét listatípusban.
+
+| Ellenőrzés | Eredmény |
+|---|---|
+| Automatikus tesztek | ✅ **50/50** (6 új: buboréksúgó-regresszió, korlátozás → várakozás + egyszeri automatikus újrapróbálás, hibatípus-besorolás, mentett elemzés használata és lejárt link esetén friss lekérés, kíméletes mód) |
+| Valós: elemzés után letöltés (Me at the zoo, M4A + angol felirat) | ✅ a letöltés alatt **0** YouTube-oldallekérés (korábban 2 teljes lekérdezés feladatonként) |
+| Valós: `--load-info-json` vágott részlettel (Big Buck Bunny) | ✅ |
+| Automatikusan fordított magyar felirat (a hibajelentés videója) | ⚠️ továbbra is 429 – a YouTube elutasítja; a program figyelmeztet, a videó letöltődik |
+
+---
+
+# 0.2.0 – tesztjelentés
 
 Dátum: 2026-11-08 · Gép: Windows 11 Pro 10.0.26200 x64 · Build-Python: 3.11.9 ·
 PySide6/Qt 6.12.0 · yt-dlp 2026.10.26 (stable) · FFmpeg: BtbN win64-gpl · Deno 2.9.x

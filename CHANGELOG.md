@@ -1,5 +1,31 @@
 # Változásnapló
 
+## 0.2.1 – 2026-11-08
+
+### Javítva
+- „Váratlan hiba… AttributeError: 'NoneType' object has no attribute 'status'” üzenet jelent meg,
+  ha az egérmutató a letöltési lista (vagy a hangsáv-/feliratlista) üres része fölött állt meg.
+  A letöltést nem érintette; a buboréksúgó most üres területen nem jelenik meg.
+
+### Kevesebb YouTube-kérés, kíméletesebb működés
+- A letöltés az elemzéskor kapott adatokat használja (`--load-info-json`), így egy
+  letöltés – feliratokkal együtt – **1 YouTube-lekérdezésbe** kerül a korábbi 3 helyett.
+  Ez jelentősen csökkenti a „robotellenőrzés” és a „túl sok kérés” esélyét.
+  Ha az elemzés óta a letöltési linkek lejártak (YouTube: kb. 6 óra), a program magától
+  friss lekérésre vált.
+- **Automatikus várakozás korlátozáskor:** ha a YouTube robotellenőrzést kér vagy „túl sok
+  kérés” (429) hibát ad, a letöltési sor 15 percig nem indít új letöltést (visszaszámláló sáv
+  „Folytatás most” gombbal), majd magától folytatódik, és az érintett letöltést egyszer
+  automatikusan újrapróbálja. Elemzés közbeni korlátozásnál is így tesz, és felajánlja a
+  böngészősütik beállítását.
+- Lejátszási listák letöltésekor rövid szünetek a kérések között (kíméletes tempó).
+- A program semmilyen ellenőrzést nem kerül meg: csak kivár és kevesebb kérést küld.
+
+### Build
+- A build tiszta munkamappába készül; a ZIP-be sosem kerül felhasználói adat, a
+  `dist\YTDLPStudio\data` (beállítások, napló) újraépítéskor megmarad, és ha a program éppen
+  fut a `dist` mappából, a build nem írja felül.
+
 ## 0.2.0 – 2026-11-08
 
 Teljes átdolgozás: új grafikus felület, újraírt letöltőmotor, valós Windowsos tesztek.

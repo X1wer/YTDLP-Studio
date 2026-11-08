@@ -182,20 +182,24 @@ VSVersionInfo(
 "@ | Set-Content -Path (Join-Path $Cache 'version_info.txt') -Encoding UTF8
 
 Write-Host 'PyInstaller (onedir)...' -ForegroundColor Cyan
-if (Test-Path $AppDir) { Remove-Item $AppDir -Recurse -Force }
-& $venvPython -m PyInstaller --noconfirm --clean --log-level WARN --distpath $Dist --workpath (Join-Path $Cache 'pyinstaller') 'build\YTDLPStudio.spec'
+# Tiszta munkamappába épít: a ZIP-be így sosem kerül felhasználói adat (data\),
+# és a dist\YTDLPStudio akkor is megmarad, ha éppen fut belőle a program.
+$StageRoot = Join-Path $Cache 'stage'
+$Stage = Join-Path $StageRoot 'YTDLPStudio'
+if (Test-Path $StageRoot) { Remove-Item $StageRoot -Recurse -Force }
+& $venvPython -m PyInstaller --noconfirm --clean --log-level WARN --distpath $StageRoot --workpath (Join-Path $Cache 'pyinstaller') 'build\YTDLPStudio.spec'
 if ($LASTEXITCODE -ne 0) { throw 'A PyInstaller-forditas nem sikerult.' }
-if (-not (Test-Path (Join-Path $AppDir 'YTDLPStudio.exe'))) { throw 'Nem keszult el a YTDLPStudio.exe' }
+if (-not (Test-Path (Join-Path $Stage 'YTDLPStudio.exe'))) { throw 'Nem keszult el a YTDLPStudio.exe' }
 
 # --------------------------------------------------------------------------
 # Portable mappa összeállítása
 # --------------------------------------------------------------------------
-New-Item -ItemType Directory -Force (Join-Path $AppDir 'bin'), (Join-Path $AppDir 'licenses') | Out-Null
-foreach ($tool in 'yt-dlp', 'ffmpeg', 'ffprobe', 'deno') { Copy-Item (Join-Path $Bin "$tool.exe") (Join-Path $AppDir 'bin') -Force }
-Get-ChildItem 'docs\licenses' -File | Where-Object { $_.Name -ne 'pillow-MIT-CMU.txt' } | Copy-Item -Destination (Join-Path $AppDir 'licenses') -Force
+New-Item -ItemType Directory -Force (Join-Path $Stage 'bin'), (Join-Path $Stage 'licenses') | Out-Null
+foreach ($tool in 'yt-dlp', 'ffmpeg', 'ffprobe', 'deno') { Copy-Item (Join-Path $Bin "$tool.exe") (Join-Path $Stage 'bin') -Force }
+Get-ChildItem 'docs\licenses' -File | Where-Object { $_.Name -ne 'pillow-MIT-CMU.txt' } | Copy-Item -Destination (Join-Path $Stage 'licenses') -Force
 $ffLicenseCached = Join-Path $Cache 'ffmpeg-distribution-LICENSE.txt'
-if (Test-Path $ffLicenseCached) { Copy-Item $ffLicenseCached (Join-Path $AppDir 'licenses') -Force }
-Copy-Item 'README.md', 'CHANGELOG.md' $AppDir -Force
+if (Test-Path $ffLicenseCached) { Copy-Item $ffLicenseCached (Join-Path $Stage 'licenses') -Force }
+Copy-Item 'README.md', 'CHANGELOG.md' $Stage -Force
 foreach ($tool in 'yt-dlp', 'ffmpeg', 'deno') {
   $exe = Join-Path $Bin "$tool.exe"
   $flag = if ($tool -eq 'ffmpeg') { '-version' } else { '--version' }
@@ -203,18 +207,34 @@ foreach ($tool in 'yt-dlp', 'ffmpeg', 'deno') {
   $versions["$tool (futtatva)"] = "$line"
 }
 $versions['Build ideje'] = (Get-Date -Format 'yyyy-MM-dd HH:mm')
-($versions.GetEnumerator() | ForEach-Object { "$($_.Key): $($_.Value)" }) | Set-Content (Join-Path $AppDir 'VERSIONS.txt') -Encoding UTF8
+($versions.GetEnumerator() | ForEach-Object { "$($_.Key): $($_.Value)" }) | Set-Content (Join-Path $Stage 'VERSIONS.txt') -Encoding UTF8
 
 $zip = Join-Path $Dist "YTDLPStudio-$Version-Windows-x64-portable.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Write-Host 'ZIP keszitese...' -ForegroundColor Cyan
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory($AppDir, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $true)
+[System.IO.Compression.ZipFile]::CreateFromDirectory($Stage, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $true)
 $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLower()
 "$hash  $(Split-Path $zip -Leaf)" | Set-Content "$zip.sha256" -Encoding ASCII
 
+# dist\YTDLPStudio frissítése a felhasználói data\ mappa megőrzésével.
+$exePath = Join-Path $AppDir 'YTDLPStudio.exe'
+$running = @(Get-Process YTDLPStudio -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exePath })
+if ($running.Count -gt 0) {
+  Write-Warning "A dist\YTDLPStudio mappabol eppen fut a program, ezert az a mappa nem frissult. Zard be, es futtasd ujra a buildet (-OfflineTools -SkipTests), vagy csomagold ki a ZIP-et."
+  $published = $false
+} else {
+  $keep = Join-Path $Cache 'data-keep'
+  if (Test-Path $keep) { Remove-Item $keep -Recurse -Force }
+  if (Test-Path (Join-Path $AppDir 'data')) { Move-Item (Join-Path $AppDir 'data') $keep }
+  if (Test-Path $AppDir) { Remove-Item $AppDir -Recurse -Force }
+  Copy-Item $Stage $AppDir -Recurse
+  if (Test-Path $keep) { Move-Item $keep (Join-Path $AppDir 'data') }
+  $published = $true
+}
+
 $size = '{0:N0} MB' -f ((Get-Item $zip).Length / 1MB)
 Write-Host ''
-Write-Host "KESZ: $AppDir" -ForegroundColor Green
+if ($published) { Write-Host "KESZ: $AppDir" -ForegroundColor Green }
 Write-Host "ZIP:  $zip ($size)" -ForegroundColor Green
 Write-Host "SHA-256: $hash"

@@ -1,6 +1,5 @@
 __pycache__/
 *.pyc
-*.spec
 build/
 dist/
 *.log
@@ -11,3 +10,6 @@ bin/*.dll
 *.ytdl
 
 .build-venv/
+
+.build-cache/
+data/

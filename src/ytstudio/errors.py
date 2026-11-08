@@ -12,16 +12,11 @@ class FriendlyError:
     retryable: bool = True
     # "rate_limit": túl sok kérés (429); "bot_check": robotellenőrzés – mindkettőnél a sor
     # automatikusan szünetel, és később újrapróbálkozik. "login": bejelentkezés kell.
-    # "bot_check" és "login" esetén a felhasználó a saját böngészőjében igazolhatja magát.
     kind: str = ""
 
     @property
     def throttled(self) -> bool:
         return self.kind in ("rate_limit", "bot_check")
-
-    @property
-    def needs_browser(self) -> bool:
-        return self.kind in ("bot_check", "login", "rate_limit")
 
 
 _RULES: list[tuple[str, FriendlyError]] = [
@@ -43,16 +38,17 @@ _RULES: list[tuple[str, FriendlyError]] = [
         "A videó ebben az országban nem érhető el.", False)),
     (r"Sign in to confirm your age|age.?restricted|inappropriate for some users", FriendlyError(
         "Korhatáros videó",
-        "A videó megtekintéséhez bejelentkezés szükséges. Jelentkezz be a böngésződben a "
-        "YouTube-ra, és engedd, hogy a program annak munkamenetét használja "
-        "(„Ellenőrzés a böngészőben” gomb).", kind="login")),
+        "A videó megtekintéséhez bejelentkezés szükséges. A Beállításokban megadhatod, hogy a "
+        "program egy olyan böngésző sütijeit használja, amelyben be vagy jelentkezve a "
+        "YouTube-ra (Firefox ajánlott).", kind="login")),
     (r"Sign in to confirm you.?re not a bot|confirm you are not a robot|LOGIN_REQUIRED", FriendlyError(
         "A YouTube ellenőrzést kér",
         "A YouTube rövid időn belül túl sok kérést kapott erről a hálózatról, ezért ideiglenesen "
-        "robotnak nézte őket. Ez általában néhány perc–óra alatt magától megszűnik: a program "
-        "a letöltési sort ilyenkor automatikusan szünetelteti, majd újrapróbálkozik. Ha tartósan "
-        "fennáll, frissítsd a yt-dlp-t (Eszközök menü), vagy használd egy bejelentkezett böngésző "
-        "sütijeit („Ellenőrzés a böngészőben” gomb).", kind="bot_check")),
+        "robotnak nézte őket. Ezt az ellenőrzést a programból nem lehet elvégezni: a YouTube a "
+        "letöltőprogramoknak nem küld kitölthető ellenőrzést, csak elutasítja a kérést (a böngészőben "
+        "ezért nem is látszik semmi). Általában néhány perc–óra alatt magától megszűnik; a program "
+        "addig szünetelteti a letöltési sort, majd újrapróbálkozik. Ha tartósan fennáll, frissítsd a "
+        "yt-dlp-t (Eszközök menü).", kind="bot_check")),
     (r"members.?only|Join this channel", FriendlyError(
         "Csak csatornatagoknak",
         "Ez a videó csak a csatorna fizetős tagjai számára érhető el.", False)),
@@ -61,10 +57,9 @@ _RULES: list[tuple[str, FriendlyError]] = [
         "Ez egy későbbi premier vagy élő közvetítés. A kezdés után próbáld újra.")),
     (r"HTTP Error 429|Too Many Requests", FriendlyError(
         "Túl sok kérés (429)",
-        "A YouTube rövid idő alatt túl sok kérést kapott erről a hálózatról. A program magától kivár és "
-        "később újrapróbálja; ha nem akarsz várni, az „Ellenőrzés a böngészőben” gombbal a saját "
-        "böngésződben elvégezheted az ellenőrzést (bejelentkezés, Google „szokatlan forgalom” oldal), "
-        "és a program azzal a munkamenettel folytatja.", kind="rate_limit")),
+        "A YouTube rövid idő alatt túl sok kérést kapott erről a hálózatról. Ezt a programból nem "
+        "lehet feloldani; általában néhány perc–óra alatt magától megszűnik. A program addig "
+        "szünetelteti a letöltési sort, majd újrapróbálkozik.", kind="rate_limit")),
     (r"HTTP Error 403|Forbidden", FriendlyError(
         "Hozzáférés megtagadva (403)",
         "A szerver elutasította a letöltést. Ez gyakran a yt-dlp elavultságát jelzi: frissítsd az "

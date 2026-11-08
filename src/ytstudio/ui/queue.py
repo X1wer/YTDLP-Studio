@@ -40,8 +40,6 @@ class Job:
     immediate: bool = False
     expanded: bool = False
     note: str = ""
-    failed_subs: list = field(default_factory=list)   # sikertelen feliratok (Subtitle)
-    subs_rate_limited: bool = False
     auto_retries: int = 0
     started: float = 0.0
     finished: float = 0.0
@@ -216,8 +214,6 @@ class DownloadManager(QObject):
             result: DownloadResult = payload
             job.files = result.files
             job.warnings = result.warnings
-            job.failed_subs = list(result.failed_subtitles)
-            job.subs_rate_limited = result.subtitles_rate_limited
             job.details = "\n".join(result.details)
             job.status = "done"
             job.progress = Progress(stage="done", text="Kész", percent=100)
@@ -262,34 +258,6 @@ class DownloadManager(QObject):
             job.progress = Progress()
             self.jobChanged.emit(job)
             self.schedule()
-
-    def retry_with_browser(self, job: Job, browser: str) -> None:
-        """Újrapróbálás a felhasználó böngészőjének munkamenetével (sütik).
-
-        A felhasználó a saját böngészőjében jelentkezett be / igazolta magát; a yt-dlp
-        a letöltéskor olvassa a böngésző sütijeit (a program nem menti el őket).
-        Friss lekérés kell, ezért a mentett elemzés nem használható.
-        """
-        job.options = job.options.with_changes(cookies_browser=browser, info_json="")
-        job.auto_retries = 0
-        log(f"Újrapróbálás a(z) {browser} böngésző munkamenetével: {job.title}")
-        if job.status in ("error", "cancelled", "queued"):
-            job.status = "queued"
-            job.immediate = True
-            job.progress = Progress()
-            self.jobChanged.emit(job)
-        self.resume_now()
-
-    def retry_subtitles_with_browser(self, job: Job, browser: str) -> Job:
-        """Csak a sikertelen feliratok újrapróbálása, a böngésző munkamenetével (új feladatként)."""
-        options = job.options.with_changes(
-            mode="subtitles", subtitles=list(job.failed_subs), sub_langs=[], cookies_browser=browser,
-            info_json="", embed_subtitles=False, audio_selectors=[], audio_languages=[])
-        job.note = "a hiányzó felirat újrapróbálása külön feladatként"
-        self.jobChanged.emit(job)
-        log(f"Felirat újrapróbálása a(z) {browser} böngésző munkamenetével: {job.title}")
-        self.resume_now()
-        return self.add(options, f"{job.title} – felirat", immediate=True)
 
     def remove(self, job: Job) -> None:
         if job.status == "running":
@@ -371,18 +339,14 @@ def job_actions(job: "Job") -> list[tuple[str, str, str]]:
     expandable = job_expandable(job)
     expand = [("expand", "chevron-up" if job.expanded else "chevron-down",
                "Részletek elrejtése" if job.expanded else "Részletek megjelenítése")] if expandable else []
-    verify = ([("verify", "shield", "Ellenőrzés a böngészőben (bejelentkezés / robotellenőrzés)")]
-              if job.error is not None and job.error.needs_browser else [])
     if job.status == "queued":
-        return expand + verify + [("remove", "close", "Eltávolítás a sorból")]
+        return expand + [("remove", "close", "Eltávolítás a sorból")]
     if job.status == "running":
         return [("cancel", "stop", "Megszakítás")]
     if job.status == "done":
-        subs = ([("verify", "shield", "A hiányzó felirat újrapróbálása a böngésződ bejelentkezésével "
-                  "(a videót nem tölti le újra)")] if job.failed_subs else [])
-        return expand + subs + [("folder", "folder-open", "Mappa megnyitása"), ("open", "play", "Megnyitás")]
+        return expand + [("folder", "folder-open", "Mappa megnyitása"), ("open", "play", "Megnyitás")]
     if job.status == "error":
-        return expand + verify + [("remove", "close", "Eltávolítás"), ("retry", "retry", "Újrapróbálás")]
+        return expand + [("remove", "close", "Eltávolítás"), ("retry", "retry", "Újrapróbálás")]
     if job.status == "cancelled":
         return [("remove", "close", "Eltávolítás"), ("retry", "retry", "Újrapróbálás")]
     return []
@@ -397,14 +361,7 @@ def job_detail_text(job: "Job") -> str:
     parts = []
     if job.error is not None and job.status in ("error", "queued"):
         parts.append(f"{job.error.title}: {job.error.message}")
-        if job.error.needs_browser:
-            parts.append("Megoldás: a pajzs ikonnal („Ellenőrzés a böngészőben”) igazolhatod magad a saját "
-                         "böngésződben, utána a program azzal a munkamenettel próbálja újra.")
     parts += [f"⚠ {w}" for w in job.warnings]
-    if job.status == "done" and job.failed_subs:
-        parts.append("Megoldás: a pajzs ikonnal („Ellenőrzés a böngészőben”) bejelentkezve újrapróbálhatod "
-                     "csak a hiányzó feliratot – a videót nem tölti le újra. Ha így sem sikerül, a YouTube "
-                     "ezt a feliratot jelenleg nem adja ki; az eredeti nyelvű felirat működik.")
     return "\n\n".join(parts)
 
 
@@ -575,7 +532,7 @@ class JobDelegate(QStyledItemDelegate):
                 painter.setBrush(theme.qc("border"))
                 painter.drawRoundedRect(QRectF(r), 7, 7)
             color = (theme.c("danger") if action == "cancel" else
-                     theme.c("accent") if action in ("open", "retry", "verify") else theme.c("muted"))
+                     theme.c("accent") if action in ("open", "retry") else theme.c("muted"))
             painter.drawPixmap(r.left() + 6, r.top() + 6, icons.pixmap(icon_name, color, 18))
         painter.restore()
 
@@ -737,11 +694,6 @@ class QueuePanel(Card):
             self.cooldown.setToolTip("A YouTube rövid időn belül túl sok kérést kapott erről a hálózatról "
                                      "(robotellenőrzés vagy „túl sok kérés”). Ez általában magától megszűnik.")
             actions = [("Folytatás most", self.manager.resume_now)]
-            blocked = next((j for j in self.manager.jobs if j.error is not None and j.error.needs_browser
-                            and j.status in ("queued", "error")), None)
-            if blocked is not None:
-                actions.insert(0, ("Ellenőrzés a böngészőben…",
-                                   lambda: self.actionRequested.emit("verify", blocked)))
             self.cooldown.show_message("warning", "A YouTube ideiglenesen korlátoz", text, actions)
         else:
             self.cooldown.message.setText(text)

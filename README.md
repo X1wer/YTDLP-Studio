@@ -38,7 +38,7 @@ tölthetsz le videót, zenét vagy feliratot – akár csak egy kiválasztott r�
 
 ## Indítás (portable verzió)
 
-1. Töltsd le a `YTDLPStudio-0.2.3-Windows-x64-portable.zip` fájlt.
+1. Töltsd le a `YTDLPStudio-0.2.4-Windows-x64-portable.zip` fájlt.
 2. Csomagold ki egy **írható** mappába (pl. `Dokumentumok\YTDLPStudio` vagy pendrive).
    Ne a ZIP-ből közvetlenül indítsd.
 3. Indítsd el a `YTDLPStudio.exe` fájlt. (Az első indításkor a Windows SmartScreen
@@ -79,8 +79,8 @@ Billentyűk: `Enter` – elemzés, `Ctrl+L` – linkmező, `Ctrl+Enter` – Let�
 | Üzenet | Teendő |
 |---|---|
 | *Hozzáférés megtagadva (403)* / *YouTube-ellenőrzés sikertelen* | **Eszközök és frissítés** → yt-dlp frissítése (szükség esetén Nightly csatorna). |
-| *A YouTube ellenőrzést kér* (robotellenőrzés) | A program magától kivár (lásd lent); ha tartósan fennáll, frissítsd a yt-dlp-t, vagy a Beállításokban válassz böngészősütiket (Firefox ajánlott). |
-| *Túl sok kérés (429)* automatikusan fordított feliratnál | A videó letöltődik. A kártyán a pajzs ikonnal („Ellenőrzés a böngészőben”) bejelentkezve újrapróbálhatod csak a hiányzó feliratot. Ha így sem sikerül, a YouTube ezt a fordítást jelenleg nem adja ki – válaszd az eredeti nyelvű feliratot. |
+| *A YouTube ellenőrzést kér* (robotellenőrzés) | A program magától kivár, majd újrapróbálja (lásd lent). Ha tartósan fennáll, frissítsd a yt-dlp-t. |
+| *A YouTube nem adja ki a fordított feliratot* | A videó letöltődik, csak a fordított felirat marad el. Ez a programból nem oldható meg (lásd lent) – válaszd az eredeti nyelvű vagy az automatikus feliratot. |
 | *Korhatáros videó* | Bejelentkezett böngésző sütijei szükségesek (Beállítások → Böngészősütik). |
 | *A kért formátum nem érhető el* | Válassz „Legjobb elérhető” minőséget vagy másik formátumot. |
 | *Hiányzik: ffmpeg / yt-dlp* | Csomagold ki újra a teljes ZIP-et; a `bin` mappának a program mellett kell lennie. |
@@ -100,16 +100,24 @@ Sok egymás utáni elemzés vagy letöltés után ideiglenesen „robotellenőrz
 - **Automatikus várakozás:** korlátozáskor a letöltési sor 15 percig nem indít új letöltést
   (a panelen visszaszámláló és „Folytatás most” gomb látszik), utána magától folytatódik, és
   az érintett letöltést egyszer újrapróbálja.
-- **Ellenőrzés a böngészőben (ha nem akarsz várni, vagy tartósan fennáll):** a YouTube a
-  letöltőprogramoknak nem küld kitölthető ellenőrzést, csak elutasítja a kérést, ezért az
-  ellenőrzés a programban nem jeleníthető meg. Helyette a hibánál – robotellenőrzésnél, „túl sok kérés” (429) hibánál és bejelentkezést igénylő
-  videónál – (vagy a letöltési kártya pajzs ikonjával) megnyíló **„Ellenőrzés a böngészőben”** ablak végigvezet: 1) megnyitja a
-  videót a böngésződben, ahol bejelentkezhetsz / elvégezheted az ellenőrzést; 2) kiválasztod a
-  böngészőt (Firefox ajánlott – a Chrome-alapú böngészők sütijei titkosítás miatt gyakran nem
-  olvashatók); 3) a program a böngésző munkamenetével újrapróbálja. A sütiket a program nem
-  menti el, csak a lekéréshez olvassa. Nagyon sok letöltés bejelentkezett fiókkal a fiók
-  korlátozásával is járhat. Ha ez sem segít, frissítsd a yt-dlp-t (Eszközök és frissítés).
-- A program nem kerüli meg a robotellenőrzést, csak kivár és kevesebb kérést küld.
+
+**Miért nem lehet az ellenőrzést a programban (vagy egy felugró ablakban) elvégezni?**
+A YouTube a letöltőprogramoknak nem küld kitölthető ellenőrzést (például képes feladványt),
+csak elutasítja a kérést egy hibakóddal vagy egy „Sign in to confirm you're not a bot”
+üzenettel – nincs mit megjeleníteni. A böngészőben azért nem jön elő a probléma, mert a
+YouTube saját lejátszója minden kérésnél automatikusan igazolja magát belső jelekkel, amelyeket
+a letöltőprogramok nem kapnak meg; ezek utánzása a YouTube védelmének megkerülése lenne, amit
+a program nem tesz. Egy beépített böngészőablakban sem jelenne meg semmi, és a Google oda nem
+engedi a bejelentkezést. A program ezért csak kivár, kevesebb kérést küld, és érthetően jelzi a
+helyzetet. (Korhatáros videókhoz a Beállításokban megadható egy bejelentkezett böngésző –
+Firefox ajánlott –, amelynek sütijeit a yt-dlp a lekéréshez olvassa; a program nem menti el őket.)
+
+**Automatikusan fordított feliratok:** a YouTube ezeket jelenleg csak a saját lejátszójában
+jeleníti meg, letöltésre nem adja ki. A válasza ugyan „túl sok kérés” (429), de várakozás után
+is ugyanez jön, ezért a program ilyenkor nem várakoztatja a sort: a videót letölti, a hiányzó
+feliratot a letöltési kártyán (lenyitva) érthetően jelzi. A feliratlistában a „fordítás” típusú
+elemeknél ez már letöltés előtt látszik. Az eredeti nyelvű és az automatikus
+(beszédfelismeréses) felirat letölthető.
 
 ## Ismert korlátozások
 

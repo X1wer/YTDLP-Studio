@@ -106,17 +106,23 @@ class EngineTest(unittest.TestCase):
             self.assertEqual([n[-7:] for n in names], [".de.mp3", ".es.mp3"])
             self.assertTrue(result.warnings and "xx" in result.warnings[0])
             self.assertTrue(result.subtitles_rate_limited)
-            self.assertEqual([sub.language for sub in result.failed_subtitles], ["xx"])
+            self.assertFalse(result.translated_unavailable)
 
     def test_subtitles_only_rate_limit_is_classified(self):
         with TemporaryDirectory() as d:
-            opts = DownloadOptions(url=URL, dest=d, mode="subtitles",
-                                   subtitles=[Subtitle("xx", "translated", "", "en")])
+            # Fordított felirat 429: a YouTube nem adja ki – nem korlátozás, nincs várakozás.
+            translated = DownloadOptions(url=URL, dest=d, mode="subtitles",
+                                         subtitles=[Subtitle("xx", "translated", "", "en")])
             with self.assertRaises(engine.OperationError) as ctx:
-                engine.DownloadTask(opts, "k10").run()
-            self.assertEqual(ctx.exception.friendly.kind, "rate_limit")
-            self.assertTrue(ctx.exception.friendly.needs_browser)
+                engine.DownloadTask(translated, "k10").run()
+            self.assertFalse(ctx.exception.friendly.throttled)
+            self.assertIn("nem oldható meg", ctx.exception.friendly.message)
             self.assertIn("429", ctx.exception.details)
+            # Más felirat 429: valódi korlátozás, a sor kivár.
+            manual = translated.with_changes(subtitles=[Subtitle("xx", "manual")])
+            with self.assertRaises(engine.OperationError) as ctx:
+                engine.DownloadTask(manual, "k11").run()
+            self.assertTrue(ctx.exception.friendly.throttled)
 
     def test_subtitles_only_vtt(self):
         with TemporaryDirectory() as d:

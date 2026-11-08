@@ -1,5 +1,14 @@
 # YTDLP Studio – tesztjelentés
 
+## 0.2.4 kiegészítés (2026-11-08)
+
+A felhasználói visszajelzés szerint a böngészőben nem jelenik meg ellenőrzés, így az
+„Ellenőrzés a böngészőben” funkció nem segített; eltávolítva.
+
+| Ellenőrzés | Eredmény |
+|---|---|
+| Automatikus tesztek | ✅ **54/54** (a böngészős funkció tesztjei helyett: robotellenőrzésnél nincs hamis megoldási javaslat, csak magyarázat; fordított felirat 429 → „nem oldható meg” magyarázat, nincs várakoztatás; más felirat 429 → valódi korlátozásként kezelve; a feliratlistában a fordítások jelölése és súgója) |
+
 ## 0.2.3 kiegészítés (2026-11-08)
 
 | Ellenőrzés | Eredmény |

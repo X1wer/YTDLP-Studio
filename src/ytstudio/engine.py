@@ -377,13 +377,20 @@ class Progress:
     total: float | None = None
 
 
+TRANSLATED_UNAVAILABLE = (
+    "A YouTube az automatikusan fordított feliratokat jelenleg csak a saját lejátszójában jeleníti meg, "
+    "letöltésre nem adja ki. A válasza ugyan „túl sok kérés” (429), de ez várakozás után is ugyanígy "
+    "jön, és a böngészőben sem látszik semmilyen ellenőrzés, ezért a programból nem oldható meg. "
+    "Az eredeti nyelvű és az automatikus (beszédfelismeréses) felirat letölthető.")
+
+
 @dataclass
 class DownloadResult:
     files: list[Path] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     details: list[str] = field(default_factory=list)   # a figyelmeztetések technikai háttere
-    failed_subtitles: list[Subtitle] = field(default_factory=list)
     subtitles_rate_limited: bool = False                # a YouTube 429-cel utasította el
+    translated_unavailable: bool = False                # fordított felirat: a YouTube nem adja ki
 
     @property
     def main_file(self) -> Path | None:
@@ -484,12 +491,15 @@ class DownloadTask:
         if opts.wants_subtitles:
             subs = self._download_subtitles(work, result)
             if opts.mode == "subtitles" and not subs:
+                if result.translated_unavailable and not result.subtitles_rate_limited:
+                    raise OperationError(FriendlyError(
+                        "A YouTube nem adja ki a fordított feliratot", TRANSLATED_UNAVAILABLE, False),
+                        "\n".join(result.details))
                 if result.subtitles_rate_limited:
                     raise OperationError(FriendlyError(
                         "A YouTube nem engedte letölteni a feliratot (429)",
-                        "A YouTube „túl sok kérés” választ adott. Bejelentkezve a böngésződben "
-                        "(„Ellenőrzés a böngészőben”) újrapróbálhatod; ha így sem sikerül, ezt a "
-                        "feliratot a YouTube jelenleg nem adja ki – az eredeti nyelvű felirat működik.",
+                        "A YouTube „túl sok kérés” választ adott. Ez általában néhány perc–óra alatt "
+                        "magától megszűnik; a program addig vár, majd újrapróbálja.",
                         kind="rate_limit"), "\n".join(result.details))
                 raise OperationError(FriendlyError(
                     "Nem sikerült feliratot letölteni",
@@ -731,20 +741,18 @@ class DownloadTask:
             if code != 0 or missing:
                 joined = "\n".join(messages)
                 names = ", ".join(missing) if missing else "egyes feliratok"
-                limited = "429" in joined
-                if limited:
+                translated = bool(missing) and all(
+                    any(s.kind == "translated" and s.language == lang for s in opts.subtitles) for lang in missing)
+                if "429" in joined and translated:
+                    # A YouTube a fordított feliratokat a saját lejátszóján kívül tartósan elutasítja;
+                    # várakozással vagy a programból nem oldható meg, ezért nem korlátozásként kezeljük.
+                    result.translated_unavailable = True
+                    detail = TRANSLATED_UNAVAILABLE
+                elif "429" in joined:
                     result.subtitles_rate_limited = True
-                    translated = any(s.kind == "translated" and s.language in missing for s in opts.subtitles)
-                    detail = ("A YouTube nem engedte letölteni " +
-                              ("az automatikusan fordított feliratot" if translated else "a feliratot") +
-                              " (429 – túl sok kérés).")
+                    detail = "A YouTube nem engedte letölteni a feliratot (429 – túl sok kérés)."
                 else:
                     detail = explain(joined).message if messages else ""
-                for lang in missing:
-                    group = "auto" if step["suffix"] or lang not in manual_langs else "manual"
-                    sub = next((s for s in opts.subtitles if s.language == lang and s.group == group), None)
-                    if sub is not None:
-                        result.failed_subtitles.append(sub)
                 message = f"Nem sikerült letölteni: {names}. {detail}".strip()
                 result.warnings.append(message)
                 result.details.append(joined or f"A yt-dlp kilépési kódja: {code}")

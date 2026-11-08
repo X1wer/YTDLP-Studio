@@ -1,5 +1,20 @@
 # Változásnapló
 
+## 0.2.4 – 2026-11-08
+
+- **Kikerült az „Ellenőrzés a böngészőben” funkció** (0.2.2–0.2.3). A gyakorlatban nem segített: a
+  YouTube a letöltőprogramoknak nem küld kitölthető ellenőrzést, csak elutasítja a kérést, a
+  böngészőben pedig nem jelenik meg semmilyen ellenőrzés, mert a YouTube saját lejátszója
+  automatikusan igazolja magát. Felugró vagy beépített böngészőablakkal sem oldható meg, a YouTube
+  védelmét pedig a program nem kerüli meg. A program ezt most érthetően leírja (hibaüzenetek,
+  lenyitható kártya, README).
+- **Automatikusan fordított feliratok:** a YouTube 429-es elutasítását a program már nem kezeli
+  ideiglenes korlátozásként – nem várakoztatja 15 percig a sort és nem próbálja újra feleslegesen,
+  hanem jelzi, hogy ez a programból nem oldható meg. A feliratlistában a „fordítás” típusú elemek
+  mellett már letöltés előtt látszik, hogy a YouTube ezeket gyakran nem adja ki.
+- Megmarad: kevesebb YouTube-kérés, automatikus várakozás valódi korlátozásnál, lenyitható
+  figyelmeztetések és hibák, böngészősütik a Beállításokban (korhatáros videókhoz).
+
 ## 0.2.3 – 2026-11-08
 
 - **„Túl sok kérés” (429) esetén is elvégezhető az ellenőrzés a böngészőben.** Elemzésnél és

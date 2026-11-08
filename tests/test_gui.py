@@ -21,9 +21,9 @@ from ytstudio.settings import Settings
 from ytstudio.ui import theme
 from ytstudio.ui.app import create_app
 from ytstudio.ui.main_window import MainWindow
-from ytstudio.ui.dialogs import BrowserCheckDialog
+from ytstudio.engine import TRANSLATED_UNAVAILABLE
 from ytstudio.ui.queue import Job, job_actions, job_detail_text
-from ytstudio.ui.widgets import KEY_ROLE
+from ytstudio.ui.widgets import DETAIL_ROLE, KEY_ROLE
 
 URL = "https://www.youtube.com/watch?v=0e3GPea1Tyg"
 app = create_app([])
@@ -315,84 +315,27 @@ class GuiTest(unittest.TestCase):
         QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, point)
         self.assertFalse(job.expanded)
 
-    def test_bot_check_offers_browser_verification(self):
-        w = self.window
+    def test_bot_check_is_explained_without_false_promises(self):
         bot = explain("ERROR: [youtube] x: Sign in to confirm you're not a bot")
         job = self._finished_job(status="error", error=bot)
-        self.assertIn("verify", [a for a, _i, _t in job_actions(job)])
-        self.assertIn("Ellenőrzés a böngészőben", job_detail_text(job))
+        actions = [a for a, _i, _t in job_actions(job)]
+        self.assertEqual(actions, ["expand", "remove", "retry"])
+        text = job_detail_text(job)
+        self.assertIn("programból nem lehet elvégezni", text)
+        self.assertNotIn("Ellenőrzés a böngészőben", text)
 
-        class FakeDialog:
-            def __init__(self, url, settings, parent, reason="bot_check"):
-                self.url = url
-                assert reason == "bot_check"
-
-            def exec(self):
-                return True
-
-            def browser(self):
-                return "firefox"
-
-        with patch("ytstudio.ui.main_window.BrowserCheckDialog", FakeDialog), patch.object(w.manager, "_start") as start:
-            w._job_action("verify", job)
-            start.assert_called_once_with(job)
-        self.assertEqual(job.options.cookies_browser, "firefox")
-        self.assertEqual(job.options.info_json, "")
-
-    def test_failed_translated_subtitle_can_be_retried_alone_with_browser(self):
+    def test_translated_subtitle_refusal_is_explained(self):
         w = self.window
-        hu = Subtitle("hu", "translated", "Hungarian", "en")
-        job = self._finished_job(warnings=["Nem sikerült letölteni: hu. A YouTube nem engedte letölteni az "
-                                           "automatikusan fordított feliratot (429 – túl sok kérés)."])
-        job.failed_subs, job.subs_rate_limited = [hu], True
-        self.assertIn("verify", [a for a, _i, _t in job_actions(job)])
-        self.assertIn("csak a hiányzó feliratot", job_detail_text(job))
-        seen = {}
-
-        class FakeDialog:
-            def __init__(self, url, settings, parent, reason="bot_check"):
-                seen["reason"] = reason
-
-            def exec(self):
-                return True
-
-            def browser(self):
-                return "firefox"
-
-        with patch("ytstudio.ui.main_window.BrowserCheckDialog", FakeDialog), patch.object(w.manager, "_start") as start:
-            w._job_action("verify", job)
-        self.assertEqual(seen["reason"], "subtitles")
-        retry = w.manager.jobs[0]  # azonnali feladat a sor elejére kerül
-        start.assert_called_once_with(retry)
-        self.assertIsNot(retry, job)
-        self.assertEqual(retry.options.mode, "subtitles")
-        self.assertEqual(retry.options.subtitles, [hu])
-        self.assertEqual(retry.options.cookies_browser, "firefox")
-        self.assertEqual(retry.options.info_json, "")
-        self.assertTrue(retry.title.endswith("– felirat"))
-
-    def test_rate_limit_error_offers_browser_check(self):
-        too_many = explain("ERROR: unable to download video data: HTTP Error 429: Too Many Requests")
-        job = self._finished_job(status="error", error=too_many)
-        self.assertIn("verify", [a for a, _i, _t in job_actions(job)])
-        dialog = BrowserCheckDialog(URL, self.settings, self.window, reason="rate_limit")
-        texts = " ".join(l.text() for l in dialog.findChildren(QLabel))
-        self.assertIn("túl sok kérés", texts)
-        self.assertIn("szokatlan forgalom", texts)
-        dialog.close()
-
-    def test_browser_check_dialog(self):
-        dialog = BrowserCheckDialog(URL, self.settings, self.window)
-        dialog.browser_box.set_value("chrome")
-        self.assertIn("zárd be", dialog.hint.text())
-        dialog.browser_box.set_value("firefox")
-        self.assertIn("Ajánlott", dialog.hint.text())
-        with patch("ytstudio.ui.dialogs.webbrowser.open") as opened:
-            dialog._open()
-            opened.assert_called_once_with(URL)
-        dialog._accept()
-        self.assertEqual(self.settings.cookies_browser, "firefox")
-        self.assertEqual(dialog.result(), 1)
+        job = self._finished_job(warnings=["Nem sikerült letölteni: hu. " + TRANSLATED_UNAVAILABLE])
+        self.assertEqual([a for a, _i, _t in job_actions(job)], ["expand", "folder", "open"])
+        self.assertIn("a programból nem oldható meg", job_detail_text(job))
+        self.assertFalse(w.manager.in_cooldown())
+        # Már a feliratlistában is látszik, hogy a fordításokat a YouTube gyakran nem adja ki.
+        self.show_video()
+        w.sub_list.kind_box.set_value("translated")
+        index = w.sub_list.proxy.index(0, 0)
+        self.assertIn("gyakran nem adja ki", index.data(DETAIL_ROLE))
+        self.assertEqual(index.data(Qt.ItemDataRole.ToolTipRole), TRANSLATED_UNAVAILABLE)
 
     def test_theme_switch_at_runtime(self):
         w = self.window

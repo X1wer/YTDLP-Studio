@@ -209,9 +209,9 @@ class ArgumentTest(unittest.TestCase):
         bot = explain("ERROR: [youtube] x: Sign in to confirm you're not a bot. Use --cookies-from-browser "
                       "or --cookies for the authentication.")
         self.assertEqual(bot.kind, "bot_check")
-        self.assertTrue(bot.throttled and bot.needs_browser)
+        self.assertTrue(bot.throttled)
         too_many = explain("HTTP Error 429: Too Many Requests")
-        self.assertTrue(too_many.throttled and too_many.needs_browser)  # a böngészős ellenőrzés itt is felkínálva
+        self.assertTrue(too_many.throttled)
         age = explain("Sign in to confirm your age. This video may be inappropriate for some users.")
         self.assertEqual(age.kind, "login")
         self.assertFalse(age.throttled)

@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.spec
+build/
+dist/
+*.log
+settings.json
+bin/*.exe
+bin/*.dll
+*.part
+*.ytdl
+
+.build-venv/

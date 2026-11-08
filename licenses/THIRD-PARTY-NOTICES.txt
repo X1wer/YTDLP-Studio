@@ -1,0 +1,25 @@
+YTDLP Studio external command-line programs (not included in this SOURCE zip):
+
+yt-dlp: https://github.com/yt-dlp/yt-dlp
+  Unlicense (some bundled dependencies may have their own licenses).
+  Windows standalone exe includes yt-dlp-ejs.
+
+FFmpeg, FFprobe: https://ffmpeg.org/
+  Windows binaries from BtbN: https://github.com/BtbN/FFmpeg-Builds
+  GPL-licensed distribution (may include LGPL and other licenses).
+  Review FFmpeg version/build configuration and required source availability
+  when publicly redistributing the binary. Prefer retaining included licenses.
+
+Deno: https://github.com/denoland/deno
+  MIT; contains additional third-party licenses.
+
+PyInstaller: https://pyinstaller.org/
+  GPL-2.0-or-later with special exception for bundling applications.
+
+Pillow: https://python-pillow.github.io/Pillow/
+  HPND license.
+
+Python/Tcl/Tk: PSF / Tcl/Tk licenses (bundled in PyInstaller EXE).
+
+Before distributing a built ZIP publicly, preserve and review the exact license
+texts and notices from the binary distributions and their transitive components.

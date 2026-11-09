@@ -7,6 +7,10 @@
 selected clip – without using the command line. The interface is available in **English and
 Hungarian**.
 
+**On your phone too:** the Android version (Android 10 or newer) is available at
+[YTDLP Studio Android](https://github.com/X1wer/YTDLP-Studio-Android), as an APK under
+[Releases](https://github.com/X1wer/YTDLP-Studio-Android/releases/latest).
+
 ![YTDLP Studio](docs/screenshots/main-light-en.png)
 
 > Only download content you have the right to (your own, openly licensed, or permitted by the
@@ -39,7 +43,7 @@ Hungarian**.
 
 ## Getting started (portable version)
 
-1. Download `YTDLPStudio-0.3.0-Windows-x64-portable.zip` from
+1. Download the latest `YTDLPStudio-<version>-Windows-x64-portable.zip` from
    [Releases](https://github.com/X1wer/YTDLP-Studio/releases).
 2. Extract it to a **writable** folder (e.g. `Documents\YTDLPStudio` or a USB drive). Do not run it
    from inside the ZIP.

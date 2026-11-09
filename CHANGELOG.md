@@ -1,5 +1,17 @@
 # Változásnapló
 
+## 0.3.1 – 2026-11-09
+
+- **Részlet letöltésekor megmaradnak a WebVTT-feliratok stílusai.** A vágás eddig elhagyta a
+  fejléc utáni `STYLE`, `REGION` és `NOTE` blokkokat (pl. a felirat színét, helyét); most az első
+  feliratsor előtti blokkok mind megmaradnak.
+- **Üres felirat kihagyása.** Ha egy kiválasztott feliratnak nincs szövege a letöltött
+  részletben, a program nem ágyaz be üres feliratsávot (ez eddig a beágyazás hibáját okozta) és
+  nem ment üres fájlt, hanem figyelmeztet: „A kiválasztott részletben nincs feliratszöveg: …”.
+  *Csak felirat* módban, ha egyik feliratban sincs szöveg, érthető hibaüzenetet ad.
+- A README-k hivatkoznak az **Android-változatra**
+  ([X1wer/YTDLP-Studio-Android](https://github.com/X1wer/YTDLP-Studio-Android)).
+
 ## 0.3.0 – 2026-11-09
 
 - **Angol nyelvű felület.** A Beállításokban választható: *Rendszer szerint* (alapértelmezés: a

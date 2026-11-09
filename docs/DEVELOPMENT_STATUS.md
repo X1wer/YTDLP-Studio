@@ -1,6 +1,6 @@
 # Fejlesztési állapot és további lehetőségek
 
-**Aktuális verzió: 0.3.0** (2026-11-09). A változások a `CHANGELOG.md`-ben, a tesztek
+**Aktuális verzió: 0.3.1** (2026-11-09). A változások a `CHANGELOG.md`-ben, a tesztek
 eredménye a `docs/TEST_REPORT.md`-ben olvasható.
 
 ## Architektúra röviden

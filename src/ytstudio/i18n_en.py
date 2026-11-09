@@ -76,6 +76,9 @@ CATALOG = {
         "as separate files.",
     "A kijelölt feliratok egyike sem volt letölthető. Lásd a naplót.":
         "None of the selected subtitles could be downloaded. See the log.",
+    "A kijelölt feliratokban nincs szöveg a választott szakaszban. Válassz hosszabb szakaszt, vagy töltsd le a teljes videó feliratát.":
+        "The selected subtitles contain no text in the chosen section. Choose a longer section or download the "
+        "subtitles of the whole video.",
     "A kijelölt hangsávok külön fájlokba kerülnek.": "The selected audio tracks are saved to separate files.",
     "A kijelölés a teljes videót lefedi – húzd a végpontokat, vagy írd be az időket.":
         "The selection covers the whole video – drag the end points or type the times.",
@@ -85,6 +88,7 @@ CATALOG = {
     "A kiválasztott minőség, formátum vagy hangsáv ennél a videónál nem létezik. Válassz más beállítást, vagy hagyd a minőséget „Legjobb” értéken.":
         "The selected quality, format or audio track does not exist for this video. Choose another option, or "
         "leave the quality at “Best”.",
+    "A kiválasztott részletben nincs feliratszöveg: {names}.": "The selected clip contains no subtitle text: {names}.",
     "A kért formátum nem érhető el": "The requested format is not available",
     "A kért tartalom vagy formátum nem létezik a szerveren.": "The requested content or format does not exist on the server.",
     "A lejátszási lista nem tartalmaz elérhető videót.": "The playlist contains no available videos.",
@@ -239,6 +243,7 @@ CATALOG = {
     "Csatorna: a „Videók” fül betöltése.": "Channel: loading the “Videos” tab.",
     "DRM-védett tartalom": "DRM-protected content",
     "Deno (JavaScript-futtató)": "Deno (JavaScript runtime)",
+    "Ebben a részletben nincs felirat": "No subtitles in this clip",
     "Egyszerre futó letöltések": "Simultaneous downloads",
     "Ehhez a videóhoz nem érhető el felirat.": "No subtitles are available for this video.",
     "Ehhez a videóhoz nincs felirat.": "This video has no subtitles.",

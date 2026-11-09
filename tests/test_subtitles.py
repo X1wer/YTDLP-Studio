@@ -49,6 +49,20 @@ class SubtitlesTest(unittest.TestCase):
         self.assertIn("<00:00:00.000>", result)
         self.assertNotIn("Bye", result)
 
+    def test_vtt_style_region_and_note_blocks_are_kept(self):
+        text = ("WEBVTT\n\nSTYLE\n::cue { color: yellow }\n\nREGION\nid:bal width:40%\n\n"
+                "NOTE fejléc-megjegyzés\n\n00:00:12.000 --> 00:00:14.000\nElső\n\n"
+                "NOTE a feliratok közötti megjegyzés elhagyható\n\n00:00:20.000 --> 00:00:21.000\nMásodik\n")
+        result = trim_subtitle_text(text, 10, 30, True)
+        self.assertTrue(result.startswith("WEBVTT\n\nSTYLE\n::cue { color: yellow }\n\nREGION\nid:bal width:40%\n\n"
+                                          "NOTE fejléc-megjegyzés\n\n00:00:02.000 --> 00:00:04.000\nElső"), result)
+        self.assertNotIn("közötti", result)
+        self.assertIn("00:00:10.000 --> 00:00:11.000\nMásodik", result)
+
+    def test_vtt_without_header_gets_one(self):
+        result = trim_subtitle_text("STYLE\n::cue { color: red }\n\n00:00:01.000 --> 00:00:02.000\nx", 0, None, True)
+        self.assertTrue(result.startswith("WEBVTT\n\nSTYLE\n::cue { color: red }\n\n00:00:01.000"), result)
+
     def test_empty_result(self):
         self.assertEqual(trim_subtitle_text(SRT, 100, 200), "")
         self.assertEqual(trim_subtitle_text("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nx", 50, None, True), "WEBVTT\n")

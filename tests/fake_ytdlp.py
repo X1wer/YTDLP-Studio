@@ -66,10 +66,13 @@ if "--skip-download" in args:
             print("WARNING: Unable to download video subtitles for 'xx': HTTP Error 429: Too Many Requests")
             continue
         path = work / fill(sub_template, f"{lang}.{fmt}")
+        minute = "01" if lang == "ja" else "00"  # a japán felirat csak az 1. perctől szól
         if fmt == "srt":
-            body = "".join(f"{i}\n00:00:0{i},000 --> 00:00:0{i},800\n{lang} felirat {i}\n\n" for i in range(1, 6))
+            body = "".join(f"{i}\n00:{minute}:0{i},000 --> 00:{minute}:0{i},800\n{lang} felirat {i}\n\n"
+                           for i in range(1, 6))
         else:
-            body = "WEBVTT\n\n" + "".join(f"00:00:0{i}.000 --> 00:00:0{i}.800\n{lang} felirat {i}\n\n" for i in range(1, 6))
+            body = "WEBVTT\n\n" + "".join(f"00:{minute}:0{i}.000 --> 00:{minute}:0{i}.800\n{lang} felirat {i}\n\n"
+                                          for i in range(1, 6))
         path.write_text(body, encoding="utf-8")
         print(f"[info] Writing video subtitles to: {path}", flush=True)
     sys.exit(0)

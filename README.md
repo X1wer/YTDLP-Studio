@@ -6,6 +6,10 @@
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) alapjaira építve. Parancssori ismeret nélkül
 tölthetsz le videót, zenét vagy feliratot – akár csak egy kiválasztott részletet.
 
+**Telefonra is:** az Android-változat (Android 10 vagy újabb) a
+[YTDLP Studio Android](https://github.com/X1wer/YTDLP-Studio-Android) oldalon érhető el,
+APK-fájlként a [Kiadások](https://github.com/X1wer/YTDLP-Studio-Android/releases/latest) között.
+
 ![YTDLP Studio](docs/screenshots/main-light.png)
 
 > Csak olyan tartalmat tölts le, amelyhez jogod van (pl. saját, nyílt licencű vagy a
@@ -41,7 +45,7 @@ tölthetsz le videót, zenét vagy feliratot – akár csak egy kiválasztott r�
 
 ## Indítás (portable verzió)
 
-1. Töltsd le a `YTDLPStudio-0.3.0-Windows-x64-portable.zip` fájlt a
+1. Töltsd le a legfrissebb `YTDLPStudio-<verzió>-Windows-x64-portable.zip` fájlt a
    [Kiadások (Releases)](https://github.com/X1wer/YTDLP-Studio/releases) oldalról.
 2. Csomagold ki egy **írható** mappába (pl. `Dokumentumok\YTDLPStudio` vagy pendrive).
    Ne a ZIP-ből közvetlenül indítsd.

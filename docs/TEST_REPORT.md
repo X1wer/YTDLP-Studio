@@ -1,5 +1,14 @@
 # YTDLP Studio – tesztjelentés
 
+## 0.3.1 kiegészítés (2026-11-09) – feliratvágás
+
+| Ellenőrzés | Eredmény |
+|---|---|
+| Automatikus tesztek | ✅ **63/63** (`QT_QPA_PLATFORM=offscreen`) |
+| WebVTT `STYLE`/`REGION`/`NOTE` blokkok vágás után | ✅ az első feliratsor előttiek megmaradnak, a feliratok közötti `NOTE` elmarad; fejléc nélküli VTT-nél a `WEBVTT` sor a blokkok elé kerül. A teszt a régi kóddal elbukik. |
+| Részletben üres felirat (valódi FFmpeg-gel) | ✅ a magyar felirat beágyazódik, az üres japán kimarad (nincs beágyazási hiba, nincs üres fájl), egy figyelmeztetés; *Csak felirat* módban „Ebben a részletben nincs felirat” hiba. A teszt a régi kóddal elbukik. |
+| Éles YouTube-letöltés | ❌ nem tesztelt (a módosítás a letöltés utáni lépéseket érinti, ezeket a tesztek valódi FFmpeg-gel lefedik) |
+
 ## 0.3.0 kiegészítés (2026-11-09) – angol felület
 
 | Ellenőrzés | Eredmény |

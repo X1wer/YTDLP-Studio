@@ -46,11 +46,13 @@ def trim_subtitle_text(content: str, start: float = 0.0, end: float | None = Non
     output: list[str] = []
     count = 0
     header_done = False
+    cues_started = False
     for block in blocks:
         lines = block.split("\n")
         timeline_idx = next((i for i, line in enumerate(lines) if _TIMELINE.fullmatch(line.strip())), None)
         if timeline_idx is None:
-            if vtt and not header_done:
+            # A fejléc és az első felirat előtti STYLE/REGION/NOTE blokkok megmaradnak.
+            if vtt and not cues_started:
                 first = lines[0].strip()
                 if first.startswith("WEBVTT"):
                     output.append(block)
@@ -61,6 +63,7 @@ def trim_subtitle_text(content: str, start: float = 0.0, end: float | None = Non
         if vtt and not header_done:
             output.insert(0, "WEBVTT")
             header_done = True
+        cues_started = True
         match = _TIMELINE.fullmatch(lines[timeline_idx].strip())
         assert match is not None
         first, last = stamp_to_ms(match["first"]), stamp_to_ms(match["last"])

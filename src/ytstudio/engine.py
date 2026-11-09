@@ -23,7 +23,7 @@ from .i18n import N_, tr
 from .core import (DownloadOptions, PlaylistInfo, Subtitle, Tools, VideoInfo, media_args,
                    metadata_args, subtitle_args, subtitle_plan, youtube_playlist_context)
 from .errors import FriendlyError, explain
-from .langs import to_iso639_2
+from .langs import language_name, to_iso639_2
 from .settings import command_env, data_dir, find_exe
 from .subtitles import trim_file
 
@@ -512,9 +512,29 @@ class DownloadTask:
             offset = self._probe_offset(media[0]) if media and opts.mode == "video" else 0.0
             if offset:
                 self.on_log(tr("A gyors vágás miatt a hang {seconds} mp-cel később indul; a feliratok ehhez igazodnak.").format(seconds=f"{offset:.3f}"))
-            for path, _, _ in subs:
+            empty: list[str] = []
+            kept_subs: list[tuple[Path, Subtitle | None, str]] = []
+            for item in subs:
+                path = item[0]
                 kept = trim_file(path, opts.start or 0.0, opts.end, offset)
                 self.on_log(tr("Felirat igazítva ({count} sor maradt): {name}").format(count=kept, name=path.name))
+                if kept:
+                    kept_subs.append(item)
+                else:
+                    # Üres feliratsáv beágyazása az FFmpeg-et hibára futtatná, külön fájlként pedig haszontalan.
+                    path.unlink(missing_ok=True)
+                    empty.append(item[2])
+            subs = kept_subs
+            if empty:
+                if opts.mode == "subtitles" and not subs:
+                    raise OperationError(FriendlyError(
+                        tr("Ebben a részletben nincs felirat"),
+                        tr("A kijelölt feliratokban nincs szöveg a választott szakaszban. Válassz hosszabb "
+                           "szakaszt, vagy töltsd le a teljes videó feliratát."), False))
+                names = ", ".join(language_name(lang, lang) for lang in empty)
+                message = tr("A kiválasztott részletben nincs feliratszöveg: {names}.").format(names=names)
+                result.warnings.append(message)
+                self.on_log(tr("FIGYELEM: ") + message)
         if subs and opts.embed_subtitles and opts.mode == "video" and media:
             self._emit(stage="finishing", text=tr("Feliratok beágyazása…"), percent=None)
             try:

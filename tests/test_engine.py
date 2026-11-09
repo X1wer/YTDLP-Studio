@@ -96,6 +96,26 @@ class EngineTest(unittest.TestCase):
             text = srt.read_text(encoding="utf-8")
             self.assertIn("00:00:00,000 --> 00:00:00,800\nhu felirat 2", text)  # 2 mp-től igazítva
 
+    def test_clip_without_cues_skips_empty_subtitle(self):
+        with TemporaryDirectory() as d:
+            # A japán feliratnak nincs sora a 2–6. mp-ben: kimarad, a magyar beágyazódik.
+            subs = [Subtitle("hu", "manual", "Hungarian"), Subtitle("ja", "manual", "Japanese")]
+            opts = DownloadOptions(url=URL, dest=d, container="mkv", subtitles=subs, embed_subtitles=True,
+                                   start=2, end=6, duration=8, title="Teszt")
+            result = engine.DownloadTask(opts, "k20").run()
+            streams = self.probe(result.main_file)["streams"]
+            self.assertEqual([s["tags"]["language"] for s in streams if s["codec_type"] == "subtitle"], ["hun"])
+            self.assertEqual(len(result.warnings), 1)
+            self.assertIn("nincs feliratszöveg: Japán", result.warnings[0])
+            self.assertEqual(list(Path(d).glob("*.srt")), [])
+            # Csak felirat, és egyikben sincs szöveg a szakaszban: érthető hiba, nem üres fájl.
+            only_ja = opts.with_changes(mode="subtitles", subtitles=[Subtitle("ja", "manual")])
+            with self.assertRaises(engine.OperationError) as ctx:
+                engine.DownloadTask(only_ja, "k21").run()
+            self.assertEqual(ctx.exception.friendly.title, "Ebben a részletben nincs felirat")
+            self.assertFalse(ctx.exception.friendly.retryable)
+            self.assertEqual(list(Path(d).glob("*.srt")), [])
+
     def test_audio_tracks_to_separate_files_and_subtitle_failure_is_warning(self):
         with TemporaryDirectory() as d:
             opts = DownloadOptions(url=URL, dest=d, mode="audio", audio_format="mp3",

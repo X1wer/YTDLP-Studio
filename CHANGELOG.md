@@ -1,5 +1,19 @@
 # Változásnapló
 
+## 0.3.0 – 2026-11-09
+
+- **Angol nyelvű felület.** A Beállításokban választható: *Rendszer szerint* (alapértelmezés: a
+  Windows nyelve), *Magyar* vagy *English*; nyelvváltáskor a program felajánlja az újraindítást.
+  Minden felirat, súgó, hibaüzenet, állapot- és naplóüzenet lefordítva; a nyelvnevek (pl.
+  „English (US)”), a dátum- és számformátum (1.5 MB / 1,5 MB) is a választott nyelvet követi.
+  A Qt saját magyar feliratai csak magyar nyelvnél töltődnek be.
+- Fordítási réteg (`i18n.py`, `i18n_en.py`) és teszt, amely jelzi a hiányzó fordítást, az eltérő
+  helyőrzőket és ha az angol felületen magyar szöveg maradna.
+- A program saját frissítéskeresője bekapcsolva (GitHub: X1wer/YTDLP-Studio, csak kérésre az
+  Eszközök ablakban).
+- Angol README (`README.en.md`), angol képernyőképek.
+- A GitHub Actions build képernyő nélküli Qt-módban futtatja a teszteket.
+
 ## 0.2.4 – 2026-11-08
 
 - **Kikerült az „Ellenőrzés a böngészőben” funkció** (0.2.2–0.2.3). A gyakorlatban nem segített: a

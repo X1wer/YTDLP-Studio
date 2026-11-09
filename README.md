@@ -1,6 +1,8 @@
 # YTDLP Studio
 
-**Magyar nyelvű, ingyenes, telepítés nélkül használható videó- és hangletöltő Windowsra**, a
+**Magyar** · [English description](README.en.md)
+
+**Magyar és angol nyelvű, ingyenes, telepítés nélkül használható videó- és hangletöltő Windowsra**, a
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) alapjaira építve. Parancssori ismeret nélkül
 tölthetsz le videót, zenét vagy feliratot – akár csak egy kiválasztott részletet.
 
@@ -32,13 +34,15 @@ tölthetsz le videót, zenét vagy feliratot – akár csak egy kiválasztott r�
   hátralévő idő, megszakítás, újrapróbálás, kész fájl és mappa megnyitása.
 - **yt-dlp frissítés** a programból (Stable vagy Nightly), SHA-256 ellenőrzéssel és az előző
   verzió visszaállításának lehetőségével.
-- Világos/sötét téma, DPI-skálázás, érthető magyar hibaüzenetek, részletes napló.
+- **Magyar és angol felület** (Beállítások → Nyelv / Language; alapból a Windows nyelve szerint).
+- Világos/sötét téma, DPI-skálázás, érthető hibaüzenetek, részletes napló.
 - **Portable**: nem kell Python, FFmpeg vagy más telepítés; USB-meghajtóról is fut, a
   beállításokat a saját `data` mappájába menti. Nincs reklám, követőkód vagy telemetria.
 
 ## Indítás (portable verzió)
 
-1. Töltsd le a `YTDLPStudio-0.2.4-Windows-x64-portable.zip` fájlt.
+1. Töltsd le a `YTDLPStudio-0.3.0-Windows-x64-portable.zip` fájlt a
+   [Kiadások (Releases)](https://github.com/X1wer/YTDLP-Studio/releases) oldalról.
 2. Csomagold ki egy **írható** mappába (pl. `Dokumentumok\YTDLPStudio` vagy pendrive).
    Ne a ZIP-ből közvetlenül indítsd.
 3. Indítsd el a `YTDLPStudio.exe` fájlt. (Az első indításkor a Windows SmartScreen
@@ -132,8 +136,6 @@ elemeknél ez már letöltés előtt látszik. Az eredeti nyelvű és az automat
 - Chrome/Edge újabb verzióinál a sütik titkosítása miatt a böngészősütik olvasása
   sikertelen lehet; Firefox ajánlott.
 - A program nincs digitálisan aláírva (SmartScreen-figyelmeztetés lehetséges).
-- A program saját frissítéskeresője a GitHub-tároló közzététele után kapcsolható be
-  (`src/ytstudio/__init__.py` → `APP_REPO`).
 
 ## Buildelés forrásból
 

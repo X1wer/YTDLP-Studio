@@ -1,5 +1,15 @@
 # YTDLP Studio – tesztjelentés
 
+## 0.3.0 kiegészítés (2026-11-09) – angol felület
+
+| Ellenőrzés | Eredmény |
+|---|---|
+| Automatikus tesztek | ✅ **59/59** (Windows-asztalon és képernyő nélküli `QT_QPA_PLATFORM=offscreen` módban is) |
+| Fordítás teljessége | ✅ minden fordítandó szövegnek (~485) van angol párja, a helyőrzők egyeznek, nincs gyorsbillentyűt okozó „&” |
+| Angol felület végigjárása (teszt) | ✅ kezdőképernyő, videó (24 hangsáv, 174 felirat), mindhárom mód, vágás, lejátszási lista, letöltési sor és várakozási sáv, Beállítások, Eszközök, Napló, Részletek: **0 magyar szöveg** (ugyanez magyar módban 69 találatot ad, tehát a teszt érzékeny) |
+| Képernyőkép (angol, világos és sötét) | ✅ |
+| Nyelvváltás újraindítással | ✅ beállítás és újraindítás-kérdés bekötve; az újraindítást a kész EXE-vel ellenőrizni kell |
+
 ## 0.2.4 kiegészítés (2026-11-08)
 
 A felhasználói visszajelzés szerint a böngészőben nem jelenik meg ellenőrzés, így az

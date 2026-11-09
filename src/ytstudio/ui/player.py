@@ -11,6 +11,7 @@ from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import QHBoxLayout, QSlider, QVBoxLayout, QWidget
 
+from ..i18n import tr
 from .widgets import button, label, set_icon
 from ..core import fmt_time
 
@@ -39,7 +40,7 @@ class PreviewPlayer(QWidget):
         self.player.setVideoOutput(self.video)
         controls = QHBoxLayout()
         controls.setSpacing(4)
-        self.play_button = button("", "ghost", "play", "text", "Lejátszás / szünet")
+        self.play_button = button("", "ghost", "play", "text", tr("Lejátszás / szünet"))
         self.play_button.setFixedSize(34, 32)
         self.play_button.clicked.connect(self.toggle)
         controls.addWidget(self.play_button)
@@ -49,20 +50,20 @@ class PreviewPlayer(QWidget):
         controls.addWidget(self.slider, 1)
         self.time = label("00:00:00", "caption")
         controls.addWidget(self.time)
-        self.mute = button("", "ghost", "volume", "muted", "Némítás")
+        self.mute = button("", "ghost", "volume", "muted", tr("Némítás"))
         self.mute.setFixedSize(32, 32)
         self.mute.clicked.connect(self._toggle_mute)
         controls.addWidget(self.mute)
         layout.addLayout(controls)
         marks = QHBoxLayout()
         marks.setSpacing(6)
-        self.in_button = button("Kezdőpont ide", None, "mark-in", "accent",
-                                "A vágás kezdete a lejátszó aktuális pozíciója lesz")
-        self.out_button = button("Végpont ide", None, "mark-out", "accent",
-                                 "A vágás vége a lejátszó aktuális pozíciója lesz")
+        self.in_button = button(tr("Kezdőpont ide"), None, "mark-in", "accent",
+                                tr("A vágás kezdete a lejátszó aktuális pozíciója lesz"))
+        self.out_button = button(tr("Végpont ide"), None, "mark-out", "accent",
+                                 tr("A vágás vége a lejátszó aktuális pozíciója lesz"))
         self.in_button.clicked.connect(lambda: self.markIn.emit(self.seconds()))
         self.out_button.clicked.connect(lambda: self.markOut.emit(self.seconds()))
-        close = button("Bezárás", "ghost", "close", "muted")
+        close = button(tr("Bezárás"), "ghost", "close", "muted")
         close.clicked.connect(self.close_player)
         marks.addWidget(self.in_button)
         marks.addWidget(self.out_button)
@@ -107,7 +108,7 @@ class PreviewPlayer(QWidget):
         set_icon(self.play_button, "pause" if playing else "play", "text")
 
     def _error(self, _error, message: str) -> None:
-        self.failed.emit(message or "A videó nem játszható le.")
+        self.failed.emit(message or tr("A videó nem játszható le."))
 
     def close_player(self) -> None:
         self.player.stop()

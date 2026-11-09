@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 
+from .i18n import tr
 from . import APP_REPO, __version__
 
 CHANNELS = {
@@ -44,12 +45,12 @@ class Release:
 
 def _get_bytes(url: str, limit: int) -> bytes:
     if not url.startswith("https://"):
-        raise ValueError("Csak HTTPS-kapcsolat támogatott.")
+        raise ValueError(tr("Csak HTTPS-kapcsolat támogatott."))
     request = Request(url, headers={"User-Agent": UA, "Accept": "application/vnd.github+json"})
     with urlopen(request, timeout=30) as response:
         data = response.read(limit + 1)
     if len(data) > limit:
-        raise ValueError("A válasz meghaladta a megengedett méretet.")
+        raise ValueError(tr("A válasz meghaladta a megengedett méretet."))
     return data
 
 
@@ -57,10 +58,10 @@ def parse_release(raw: dict, channel: str) -> Release:
     assets = raw.get("assets") or []
     exe = next((a for a in assets if a.get("name") == ASSET), None)
     if not exe:
-        raise RuntimeError("A hivatalos kiadás nem tartalmaz yt-dlp.exe fájlt.")
+        raise RuntimeError(tr("A hivatalos kiadás nem tartalmaz yt-dlp.exe fájlt."))
     url = str(exe.get("browser_download_url") or "")
     if not url.startswith(_ALLOWED_DOWNLOAD_PREFIXES):
-        raise RuntimeError("A letöltési cím nem a hivatalos yt-dlp kiadási oldalra mutat.")
+        raise RuntimeError(tr("A letöltési cím nem a hivatalos yt-dlp kiadási oldalra mutat."))
     check = next((a for a in assets if a.get("name") in ("SHA2-256SUMS", "SHA2-256SUMS.txt")), None)
     digest = str(exe.get("digest") or "")
     sha256 = digest[7:].lower() if re.fullmatch(r"sha256:[0-9a-fA-F]{64}", digest) else None
@@ -71,7 +72,7 @@ def parse_release(raw: dict, channel: str) -> Release:
 
 def fetch_latest(channel: str = "stable") -> Release:
     if channel not in CHANNELS:
-        raise ValueError("Ismeretlen frissítési csatorna.")
+        raise ValueError(tr("Ismeretlen frissítési csatorna."))
     api = f"https://api.github.com/repos/{CHANNELS[channel]}/releases/latest"
     raw = json.loads(_get_bytes(api, 3_000_000).decode("utf-8"))
     return parse_release(raw, channel)
@@ -98,16 +99,16 @@ def expected_checksum(release: Release) -> str:
                 from_list = found.group(1).lower()
                 break
     if release.sha256 and from_list and release.sha256 != from_list:
-        raise RuntimeError("A kiadás két hivatalos ellenőrzőösszege eltér; a frissítés megszakadt.")
+        raise RuntimeError(tr("A kiadás két hivatalos ellenőrzőösszege eltér; a frissítés megszakadt."))
     checksum = release.sha256 or from_list
     if not checksum:
-        raise RuntimeError("A kiadáshoz nem található hivatalos SHA-256 ellenőrzőösszeg; a frissítés megszakadt.")
+        raise RuntimeError(tr("A kiadáshoz nem található hivatalos SHA-256 ellenőrzőösszeg; a frissítés megszakadt."))
     return checksum
 
 
 def _download_verified(url: str, destination: Path, expected_sha: str, notify, limit: int = 300_000_000) -> None:
     if not url.startswith(_ALLOWED_DOWNLOAD_PREFIXES):
-        raise ValueError("Nem hivatalos GitHub-letöltési cím.")
+        raise ValueError(tr("Nem hivatalos GitHub-letöltési cím."))
     digest = hashlib.sha256()
     received = 0
     request = Request(url, headers={"User-Agent": UA})
@@ -117,18 +118,18 @@ def _download_verified(url: str, destination: Path, expected_sha: str, notify, l
         while chunk := response.read(1024 * 256):
             received += len(chunk)
             if received > limit:
-                raise RuntimeError("A letöltött fájl mérete gyanúsan nagy; megszakítva.")
+                raise RuntimeError(tr("A letöltött fájl mérete gyanúsan nagy; megszakítva."))
             output.write(chunk)
             digest.update(chunk)
             if total:
                 percent = received * 100 // total
                 if percent // 10 != last // 10:
                     last = percent
-                    notify(f"Letöltés: {percent}%")
+                    notify(tr("Letöltés: {percent}%").format(percent=percent))
     if digest.hexdigest().lower() != expected_sha.lower():
         destination.unlink(missing_ok=True)
-        raise RuntimeError("A letöltött yt-dlp SHA-256 ellenőrzése sikertelen; a régi verzió marad.")
-    notify("SHA-256 ellenőrzés sikeres.")
+        raise RuntimeError(tr("A letöltött yt-dlp SHA-256 ellenőrzése sikertelen; a régi verzió marad."))
+    notify(tr("SHA-256 ellenőrzés sikeres."))
 
 
 def _run_version(exe: Path) -> str:
@@ -136,7 +137,7 @@ def _run_version(exe: Path) -> str:
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, check=False,
                              creationflags=(subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0))
     if process.returncode != 0:
-        raise RuntimeError("Az új yt-dlp nem indul el megfelelően.")
+        raise RuntimeError(tr("Az új yt-dlp nem indul el megfelelően."))
     return process.stdout.decode(errors="replace").strip()
 
 
@@ -162,7 +163,7 @@ def install_release(release: Release, exe_path: Path, current_version: str = "",
     backup = backup_path(exe_path)
     temp.unlink(missing_ok=True)
     try:
-        notify(f"Letöltés: yt-dlp {release.tag} ({release.channel})")
+        notify(tr("Letöltés: yt-dlp {tag} ({channel})").format(tag=release.tag, channel=release.channel))
         _download_verified(release.asset_url, temp, expected, notify)
         _run_version(temp)
         # A jelenlegi verzió előbb ideiglenes helyre kerül; a korábbi mentés csak
@@ -182,7 +183,7 @@ def install_release(release: Release, exe_path: Path, current_version: str = "",
         if had_old:
             os.replace(rollback, backup)
             backup.with_suffix(".bak.version").write_text(current_version or "ismeretlen", encoding="utf-8")
-        notify(f"Frissítés kész: {version}")
+        notify(tr("Frissítés kész: {version}").format(version=version))
         return version
     finally:
         temp.unlink(missing_ok=True)
@@ -192,7 +193,7 @@ def restore_backup(exe_path: Path, notify=lambda _: None) -> str:
     """Visszaállítja az előző (biztonsági mentett) yt-dlp-t; a jelenlegi lesz a mentés."""
     backup = backup_path(exe_path)
     if not backup.is_file():
-        raise RuntimeError("Nincs visszaállítható korábbi yt-dlp-verzió.")
+        raise RuntimeError(tr("Nincs visszaállítható korábbi yt-dlp-verzió."))
     _run_version(backup)
     swap = exe_path.with_name(exe_path.name + ".swap")
     old_version = backup_version(exe_path)
@@ -200,7 +201,7 @@ def restore_backup(exe_path: Path, notify=lambda _: None) -> str:
     try:
         current = _run_version(exe_path) if exe_path.exists() else ""
     except Exception:  # noqa: BLE001 - a hibás jelenlegi verziót is cserélni kell
-        current = "hibás"
+        current = tr("hibás")
     if exe_path.exists():
         os.replace(exe_path, swap)
     os.replace(backup, exe_path)
@@ -208,7 +209,7 @@ def restore_backup(exe_path: Path, notify=lambda _: None) -> str:
         os.replace(swap, backup)
         backup.with_suffix(".bak.version").write_text(current or "ismeretlen", encoding="utf-8")
     version = _run_version(exe_path)
-    notify(f"Visszaállítva: {version or old_version}")
+    notify(tr("Visszaállítva: {version}").format(version=version or old_version))
     return version
 
 

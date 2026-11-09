@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (QAbstractButton, QAbstractItemView, QButtonGroup,
                                QStyle, QStyledItemDelegate, QStyleOptionViewItem, QToolTip,
                                QVBoxLayout, QWidget)
 
+from ..i18n import N_, tr
 from . import icons, theme
 from ..core import fmt_duration, fmt_time, parse_time
 
@@ -564,7 +565,7 @@ class CheckList(QWidget):
 
     selectionChanged = Signal()
 
-    def __init__(self, *, placeholder: str = "Keresés…", empty_text: str = "Nincs elérhető elem.",
+    def __init__(self, *, placeholder: str = N_("Keresés…"), empty_text: str = N_("Nincs elérhető elem."),
                  kinds: Sequence[tuple[str, str]] = (), parent=None):
         super().__init__(parent)
         self.model = CheckModel(self)
@@ -576,7 +577,7 @@ class CheckList(QWidget):
         tools = QHBoxLayout()
         tools.setSpacing(6)
         self.search = QLineEdit()
-        self.search.setPlaceholderText(placeholder)
+        self.search.setPlaceholderText(tr(placeholder))
         self.search.setClearButtonEnabled(True)
         self.search_action = self.search.addAction(icons.icon("search", theme.c("faint")),
                                                    QLineEdit.ActionPosition.LeadingPosition)
@@ -584,7 +585,7 @@ class CheckList(QWidget):
         tools.addWidget(self.search, 1)
         self.kind_box = None
         if kinds:
-            self.kind_box = ChoiceBox([("", "Minden típus")] + list(kinds))
+            self.kind_box = ChoiceBox([("", tr("Minden típus"))] + list(kinds))
             self.kind_box.currentIndexChanged.connect(lambda _i: self._refilter(kind=self.kind_box.value()))
             tools.addWidget(self.kind_box)
         layout.addLayout(tools)
@@ -599,7 +600,7 @@ class CheckList(QWidget):
         self.view.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.view.viewport().setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         layout.addWidget(self.view, 1)
-        self.empty = label(empty_text, "muted", wrap=True)
+        self.empty = label(tr(empty_text), "muted", wrap=True)
         self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty.setMinimumHeight(60)
         layout.addWidget(self.empty, 1)
@@ -608,12 +609,12 @@ class CheckList(QWidget):
         self.count_label = label("", "caption")
         footer.addWidget(self.count_label)
         footer.addStretch(1)
-        self.only_checked = QPushButton("Csak kijelöltek")
+        self.only_checked = QPushButton(tr("Csak kijelöltek"))
         self.only_checked.setProperty("variant", "ghost")
         self.only_checked.setCheckable(True)
         self.only_checked.toggled.connect(lambda on: self._refilter(only_checked=on))
         self.only_checked.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.clear_button = button("Törlés", "ghost", tooltip="Minden kijelölés törlése")
+        self.clear_button = button(tr("Törlés"), "ghost", tooltip=tr("Minden kijelölés törlése"))
         self.clear_button.clicked.connect(self.clear_selection)
         footer.addWidget(self.only_checked)
         footer.addWidget(self.clear_button)
@@ -645,7 +646,7 @@ class CheckList(QWidget):
         self.view.setVisible(has_items and visible > 0)
         self.empty.setVisible(not has_items or visible == 0)
         if has_items and visible == 0:
-            self.empty.setText("Nincs a szűrésnek megfelelő elem.")
+            self.empty.setText(tr("Nincs a szűrésnek megfelelő elem."))
         elif not has_items:
             self.empty.setText(self._empty_text)
         self.search.setEnabled(has_items)
@@ -653,14 +654,14 @@ class CheckList(QWidget):
             self.kind_box.setEnabled(has_items)
         self.only_checked.setEnabled(has_items)
         self.clear_button.setEnabled(checked > 0)
-        text = f"{checked} kijelölve / {total}" if has_items else ""
+        text = tr("{checked} kijelölve / {total}").format(checked=checked, total=total) if has_items else ""
         if has_items and visible != total:
-            text += f" · {visible} látható"
+            text += " · " + tr("{visible} látható").format(visible=visible)
         self.count_label.setText(text)
 
     @property
     def _empty_text(self) -> str:
-        return getattr(self, "_empty", "Nincs elérhető elem.")
+        return getattr(self, "_empty", tr("Nincs elérhető elem."))
 
     def set_empty_text(self, text: str) -> None:
         self._empty = text
@@ -939,7 +940,7 @@ class Banner(QFrame):
             texts.addLayout(self.actions)
         else:
             layout.addLayout(self.actions)
-        self.close_button = button("", "ghost", "close", "muted", "Bezárás")
+        self.close_button = button("", "ghost", "close", "muted", tr("Bezárás"))
         self.close_button.setFixedSize(30, 30)
         self.close_button.clicked.connect(self.hide)
         layout.addWidget(self.close_button, 0, Qt.AlignmentFlag.AlignTop)
@@ -997,7 +998,7 @@ class ThumbnailView(QWidget):
     def set_playable(self, playable: bool) -> None:
         self.playable = playable
         self.setCursor(Qt.CursorShape.PointingHandCursor if playable else Qt.CursorShape.ArrowCursor)
-        self.setToolTip("Előnézet lejátszása" if playable else "")
+        self.setToolTip(tr("Előnézet lejátszása") if playable else "")
         self.update()
 
     def enterEvent(self, _event) -> None:  # noqa: N802

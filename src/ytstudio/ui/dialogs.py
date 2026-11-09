@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayo
                                QHBoxLayout, QLineEdit, QMessageBox, QPlainTextEdit, QSpinBox,
                                QVBoxLayout, QWidget, QCheckBox, QRadioButton, QButtonGroup)
 
+from ..i18n import N_, tr
 from . import theme
 from .logbus import bus, log
 from .widgets import Card, ChoiceBox, Spinner, button, label, hline
@@ -40,14 +41,16 @@ class _Dialog(QDialog):
         super().showEvent(event)
 
 
-LANG_CHOICES = [("", "Eredeti (alapértelmezett)")] + sorted(
-    ((code, language_name(code)) for code in NAMES if len(code) == 2 and code != "iw"),
-    key=lambda x: x[1])
+def lang_choices() -> list[tuple[str, str]]:
+    """Hangsávnyelvek a felület nyelvén (futás közben, a nyelvváltás miatt)."""
+    return [("", tr("Eredeti (alapértelmezett)"))] + sorted(
+        ((code, language_name(code)) for code in NAMES if len(code) == 2 and code != "iw"),
+        key=lambda x: x[1])
 
 
 class SettingsDialog(_Dialog):
     def __init__(self, settings: Settings, parent=None):
-        super().__init__("Beállítások", parent)
+        super().__init__(tr("Beállítások"), parent)
         self.settings = settings
         self.resize(560, 0)
         form = QFormLayout()
@@ -57,65 +60,71 @@ class SettingsDialog(_Dialog):
 
         dest_row = QHBoxLayout()
         self.dest = QLineEdit(settings.destination)
-        browse = button("Tallózás…")
+        browse = button(tr("Tallózás…"))
         browse.clicked.connect(self._browse)
         dest_row.addWidget(self.dest, 1)
         dest_row.addWidget(browse)
-        form.addRow("Alapértelmezett mentési mappa", dest_row)
+        form.addRow(tr("Alapértelmezett mentési mappa"), dest_row)
 
-        self.theme_box = ChoiceBox([("system", "Rendszer szerint"), ("light", "Világos"), ("dark", "Sötét")])
+        self.theme_box = ChoiceBox([("system", tr("Rendszer szerint")), ("light", tr("Világos")), ("dark", tr("Sötét"))])
         self.theme_box.set_value(settings.theme)
-        form.addRow("Téma", self.theme_box)
+        form.addRow(tr("Téma"), self.theme_box)
+
+        # A nyelvnevek mindkét nyelven érthetők maradnak, hogy a választó bármelyik nyelvről megtalálható.
+        self.language_box = ChoiceBox([("auto", tr("Rendszer szerint")), ("hu", "Magyar"), ("en", "English")])
+        self.language_box.set_value(settings.language)
+        self.language_box.setToolTip(tr("A nyelv a program újraindítása után változik."))
+        form.addRow("Nyelv / Language", self.language_box)
 
         self.subs = QLineEdit(", ".join(settings.preferred_sub_langs))
         self.subs.setPlaceholderText("pl. hu, en")
-        self.subs.setToolTip("Nyelvkódok vesszővel elválasztva. Ezek a nyelvek a lista elejére kerülnek, "
-                             "és lejátszási listáknál ezeket tölti le a program.")
-        form.addRow("Preferált feliratnyelvek", self.subs)
+        self.subs.setToolTip(tr("Nyelvkódok vesszővel elválasztva. Ezek a nyelvek a lista elejére kerülnek, "
+                             "és lejátszási listáknál ezeket tölti le a program."))
+        form.addRow(tr("Preferált feliratnyelvek"), self.subs)
 
-        self.audio_lang = ChoiceBox(LANG_CHOICES)
+        self.audio_lang = ChoiceBox(lang_choices())
         self.audio_lang.set_value(settings.preferred_audio_lang)
-        self.audio_lang.setToolTip("Lejátszási listáknál ezt a hangsávot választja, ha elérhető.")
-        form.addRow("Preferált hangsáv nyelve", self.audio_lang)
+        self.audio_lang.setToolTip(tr("Lejátszási listáknál ezt a hangsávot választja, ha elérhető."))
+        form.addRow(tr("Preferált hangsáv nyelve"), self.audio_lang)
 
-        self.remember = QCheckBox("Választott nyelvek megjegyzése")
+        self.remember = QCheckBox(tr("Választott nyelvek megjegyzése"))
         self.remember.setChecked(settings.remember_languages)
         form.addRow("", self.remember)
 
         self.parallel = QSpinBox()
         self.parallel.setRange(1, 3)
         self.parallel.setValue(settings.max_parallel)
-        form.addRow("Egyszerre futó letöltések", self.parallel)
+        form.addRow(tr("Egyszerre futó letöltések"), self.parallel)
 
         self.rate = QLineEdit(settings.rate_limit)
-        self.rate.setPlaceholderText("korlátlan (pl. 5M vagy 800K)")
-        form.addRow("Sebességkorlát", self.rate)
+        self.rate.setPlaceholderText(tr("korlátlan (pl. 5M vagy 800K)"))
+        form.addRow(tr("Sebességkorlát"), self.rate)
 
-        self.cookies = ChoiceBox([("", "Nem használ sütiket")] + [(b, b.capitalize()) for b in COOKIE_BROWSERS if b])
+        self.cookies = ChoiceBox([("", tr("Nem használ sütiket"))] + [(b, b.capitalize()) for b in COOKIE_BROWSERS if b])
         self.cookies.set_value(settings.cookies_browser)
-        self.cookies.setToolTip("Korhatáros vagy bejelentkezést igénylő videókhoz a kiválasztott böngésző "
-                                "sütijeit olvassa (a program nem tárolja őket). Firefox ajánlott.")
-        form.addRow("Böngészősütik", self.cookies)
+        self.cookies.setToolTip(tr("Korhatáros vagy bejelentkezést igénylő videókhoz a kiválasztott böngésző "
+                                "sütijeit olvassa (a program nem tárolja őket). Firefox ajánlott."))
+        form.addRow(tr("Böngészősütik"), self.cookies)
 
-        self.paste = QCheckBox("Beillesztés után automatikus elemzés")
+        self.paste = QCheckBox(tr("Beillesztés után automatikus elemzés"))
         self.paste.setChecked(settings.auto_analyze_paste)
-        self.open_done = QCheckBox("Kész letöltés után a mappa megnyitása")
+        self.open_done = QCheckBox(tr("Kész letöltés után a mappa megnyitása"))
         self.open_done.setChecked(settings.open_folder_when_done)
         form.addRow("", self.paste)
         form.addRow("", self.open_done)
         self.root.addLayout(form)
-        note = label(f"A beállítások helye: {data_dir()}", "faint", wrap=True, selectable=True)
+        note = label(tr("A beállítások helye: {path}").format(path=data_dir()), "faint", wrap=True, selectable=True)
         self.root.addWidget(note)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Save).setText("Mentés")
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText(tr("Mentés"))
         buttons.button(QDialogButtonBox.StandardButton.Save).setProperty("variant", "primary")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Mégse")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("Mégse"))
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)
         self.root.addWidget(buttons)
 
     def _browse(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Mentési mappa", self.dest.text())
+        folder = QFileDialog.getExistingDirectory(self, tr("Mentési mappa"), self.dest.text())
         if folder:
             self.dest.setText(folder)
 
@@ -123,15 +132,17 @@ class SettingsDialog(_Dialog):
         import re
         rate = self.rate.text().strip().upper()
         if rate and not re.fullmatch(r"\d+(\.\d+)?[KMG]?", rate):
-            QMessageBox.warning(self, "Beállítások", "A sebességkorlát formátuma pl. 5M vagy 800K.")
+            QMessageBox.warning(self, tr("Beállítások"), tr("A sebességkorlát formátuma pl. 5M vagy 800K."))
             return
         langs = [p.strip() for p in re.split(r"[,; ]+", self.subs.text()) if p.strip()]
         if any(not re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?", l) for l in langs):
-            QMessageBox.warning(self, "Beállítások", "A feliratnyelvek kódjai pl.: hu, en, de.")
+            QMessageBox.warning(self, tr("Beállítások"), tr("A feliratnyelvek kódjai pl.: hu, en, de."))
             return
         s = self.settings
         s.destination = self.dest.text().strip() or s.destination
         s.theme = self.theme_box.value()
+        self.language_changed = s.language != self.language_box.value()
+        s.language = self.language_box.value()
         s.preferred_sub_langs = langs[:10]
         s.preferred_audio_lang = self.audio_lang.value()
         s.remember_languages = self.remember.isChecked()
@@ -152,7 +163,7 @@ class ToolsDialog(_Dialog):
     """Összetevők verziói, yt-dlp frissítés (stable/nightly), visszaállítás."""
 
     def __init__(self, settings: Settings, can_update, parent=None):
-        super().__init__("Eszközök és frissítés", parent)
+        super().__init__(tr("Eszközök és frissítés"), parent)
         self.settings = settings
         self.can_update = can_update
         self.release: updater.Release | None = None
@@ -160,31 +171,31 @@ class ToolsDialog(_Dialog):
         self.worker = _Worker()
         self.worker.done.connect(self._on_done)
 
-        versions = Card("Összetevők", "tools")
+        versions = Card(tr("Összetevők"), "tools")
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
         grid.setVerticalSpacing(8)
         self.version_labels: dict[str, object] = {}
-        rows = [("app", APP_NAME), ("yt-dlp", "yt-dlp"), ("ffmpeg", "FFmpeg"), ("deno", "Deno (JavaScript-futtató)")]
+        rows = [("app", APP_NAME), ("yt-dlp", "yt-dlp"), ("ffmpeg", "FFmpeg"), ("deno", tr("Deno (JavaScript-futtató)"))]
         for row, (key, name) in enumerate(rows):
             grid.addWidget(label(name), row, 0)
-            value = label(__version__ if key == "app" else "lekérdezés…", "muted", selectable=True)
+            value = label(__version__ if key == "app" else tr("lekérdezés…"), "muted", selectable=True)
             grid.addWidget(value, row, 1)
             self.version_labels[key] = value
         grid.setColumnStretch(1, 1)
         versions.body.addLayout(grid)
-        versions.body.addWidget(label(f"Programmappa: {bin_dir()}", "faint", wrap=True, selectable=True))
+        versions.body.addWidget(label(tr("Programmappa: {path}").format(path=bin_dir()), "faint", wrap=True, selectable=True))
         self.root.addWidget(versions)
 
-        upd = Card("yt-dlp frissítése", "update")
-        upd.body.addWidget(label("A YouTube és más oldalak gyakran változnak; ha a letöltés hibát ad, "
+        upd = Card(tr("yt-dlp frissítése"), "update")
+        upd.body.addWidget(label(tr("A YouTube és más oldalak gyakran változnak; ha a letöltés hibát ad, "
                                  "először frissítsd a yt-dlp-t. A program csak a hivatalos GitHub-kiadást "
-                                 "telepíti, SHA-256 ellenőrzés után, és megtartja az előző verziót.",
+                                 "telepíti, SHA-256 ellenőrzés után, és megtartja az előző verziót."),
                                  "muted", wrap=True))
         channel_row = QHBoxLayout()
-        channel_row.addWidget(label("Csatorna:"))
-        self.stable = QRadioButton("Stabil (ajánlott)")
-        self.nightly = QRadioButton("Nightly (legfrissebb javítások)")
+        channel_row.addWidget(label(tr("Csatorna:")))
+        self.stable = QRadioButton(tr("Stabil (ajánlott)"))
+        self.nightly = QRadioButton(tr("Nightly (legfrissebb javítások)"))
         group = QButtonGroup(self)
         group.addButton(self.stable)
         group.addButton(self.nightly)
@@ -201,12 +212,12 @@ class ToolsDialog(_Dialog):
         status_row.addWidget(self.status, 1)
         upd.body.addLayout(status_row)
         actions = QHBoxLayout()
-        self.check_button = button("Frissítés keresése", None, "search")
+        self.check_button = button(tr("Frissítés keresése"), None, "search")
         self.check_button.clicked.connect(self._check)
-        self.install_button = button("Telepítés", "primary", "download")
+        self.install_button = button(tr("Telepítés"), "primary", "download")
         self.install_button.clicked.connect(self._install)
         self.install_button.setEnabled(False)
-        self.restore_button = button("Előző verzió visszaállítása", "ghost", "restore", "muted")
+        self.restore_button = button(tr("Előző verzió visszaállítása"), "ghost", "restore", "muted")
         self.restore_button.clicked.connect(self._restore)
         actions.addWidget(self.check_button)
         actions.addWidget(self.install_button)
@@ -215,23 +226,23 @@ class ToolsDialog(_Dialog):
         upd.body.addLayout(actions)
         self.root.addWidget(upd)
 
-        app_card = Card(f"{APP_NAME} frissítése", "info")
+        app_card = Card(tr("{app} frissítése").format(app=APP_NAME), "info")
         if APP_REPO:
             row = QHBoxLayout()
             self.app_status = label("", "muted", wrap=True)
-            check_app = button("Új verzió keresése")
+            check_app = button(tr("Új verzió keresése"))
             check_app.clicked.connect(self._check_app)
             row.addWidget(self.app_status, 1)
             row.addWidget(check_app)
             app_card.body.addLayout(row)
         else:
             app_card.body.addWidget(label(
-                f"A program verziója ({__version__}) a yt-dlp-től függetlenül kezelt. Saját frissítéskereső "
-                "a GitHub-tároló közzététele után kapcsol be.", "muted", wrap=True))
+                tr("A program verziója ({version}) a yt-dlp-től függetlenül kezelt. Saját frissítéskereső "
+                   "a GitHub-tároló közzététele után kapcsol be.").format(version=__version__), "muted", wrap=True))
         self.root.addWidget(app_card)
 
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        close.button(QDialogButtonBox.StandardButton.Close).setText("Bezárás")
+        close.button(QDialogButtonBox.StandardButton.Close).setText(tr("Bezárás"))
         close.rejected.connect(self.reject)
         self.root.addWidget(close)
         self._refresh_versions()
@@ -258,7 +269,7 @@ class ToolsDialog(_Dialog):
         return "nightly" if self.nightly.isChecked() else "stable"
 
     def _check(self) -> None:
-        self.status.setText("Kiadás lekérdezése a GitHubról…")
+        self.status.setText(tr("Kiadás lekérdezése a GitHubról…"))
         channel = self._channel()
         self._run("check", lambda: updater.fetch_latest(channel))
 
@@ -266,25 +277,25 @@ class ToolsDialog(_Dialog):
         if not self.release:
             return
         if not self.can_update():
-            QMessageBox.information(self, "Frissítés", "A frissítés a futó letöltések és elemzések "
-                                    "befejezése után lehetséges.")
+            QMessageBox.information(self, tr("Frissítés"), tr("A frissítés a futó letöltések és elemzések "
+                                    "befejezése után lehetséges."))
             return
         release = self.release
         current = self._current
         target = bin_dir() / "yt-dlp.exe"
-        self.status.setText(f"yt-dlp {release.tag} letöltése és ellenőrzése…")
+        self.status.setText(tr("yt-dlp {tag} letöltése és ellenőrzése…").format(tag=release.tag))
         self._run("install", lambda: updater.install_release(release, target, current, log))
 
     def _restore(self) -> None:
         target = bin_dir() / "yt-dlp.exe"
         if not updater.backup_path(target).is_file():
-            QMessageBox.information(self, "Visszaállítás", "Nincs korábbi yt-dlp-verzió elmentve.")
+            QMessageBox.information(self, tr("Visszaállítás"), tr("Nincs korábbi yt-dlp-verzió elmentve."))
             return
         if not self.can_update():
-            QMessageBox.information(self, "Visszaállítás", "Várd meg a futó letöltések végét.")
+            QMessageBox.information(self, tr("Visszaállítás"), tr("Várd meg a futó letöltések végét."))
             return
-        old = updater.backup_version(target) or "korábbi"
-        if QMessageBox.question(self, "Visszaállítás", f"Visszaállítod a(z) {old} yt-dlp-verziót?") != QMessageBox.StandardButton.Yes:
+        old = updater.backup_version(target) or tr("korábbi")
+        if QMessageBox.question(self, tr("Visszaállítás"), tr("Visszaállítod a(z) {version} yt-dlp-verziót?").format(version=old)) != QMessageBox.StandardButton.Yes:
             return
         self._run("restore", lambda: updater.restore_backup(target, log))
 
@@ -293,7 +304,7 @@ class ToolsDialog(_Dialog):
         return self.version_labels["yt-dlp"].text()
 
     def _check_app(self) -> None:
-        self.app_status.setText("Lekérdezés…")
+        self.app_status.setText(tr("Lekérdezés…"))
         self._run("app", updater.fetch_app_release)
 
     def _on_done(self, kind: str, payload) -> None:
@@ -301,55 +312,55 @@ class ToolsDialog(_Dialog):
         self.check_button.setEnabled(True)
         target = bin_dir() / "yt-dlp.exe"
         self.restore_button.setEnabled(updater.backup_path(target).is_file())
-        self.restore_button.setToolTip(f"Mentett verzió: {updater.backup_version(target) or 'ismeretlen'}")
+        self.restore_button.setToolTip(tr("Mentett verzió: {version}").format(version=updater.backup_version(target) or tr("ismeretlen")))
         if kind.startswith("error:"):
             message = str(payload)
             if "urlopen" in message or "getaddrinfo" in message:
-                message = "Nincs internetkapcsolat, vagy a GitHub nem érhető el."
-            self.status.setText("Hiba: " + message)
-            log("Frissítési hiba: " + str(payload))
+                message = tr("Nincs internetkapcsolat, vagy a GitHub nem érhető el.")
+            self.status.setText(tr("Hiba: ") + message)
+            log(tr("Frissítési hiba: ") + str(payload))
             if kind == "error:install":
-                QMessageBox.warning(self, "Frissítés", "A frissítés nem sikerült, a korábbi verzió maradt.\n\n" + message)
+                QMessageBox.warning(self, tr("Frissítés"), tr("A frissítés nem sikerült, a korábbi verzió maradt.") + "\n\n" + message)
             if kind == "error:app" and APP_REPO:
-                self.app_status.setText("Nem sikerült lekérdezni: " + message)
+                self.app_status.setText(tr("Nem sikerült lekérdezni: ") + message)
             self.install_button.setEnabled(self.release is not None)
             return
         if kind == "versions":
             for name, value in payload.items():
-                self.version_labels[name].setText(value or "hiányzik")
+                self.version_labels[name].setText(value or tr("hiányzik"))
             self.install_button.setEnabled(self.release is not None)
         elif kind == "check":
             self.release = payload
             current = self._current
             if updater.is_newer(payload.tag, current):
-                self.status.setText(f"Elérhető: yt-dlp {payload.tag} ({payload.date}, {payload.channel}). "
-                                    f"Telepített: {current}.")
+                self.status.setText(tr("Elérhető: yt-dlp {tag} ({date}, {channel}). Telepített: {current}.").format(
+                    tag=payload.tag, date=payload.date, channel=payload.channel, current=current))
                 self.install_button.setEnabled(True)
             else:
-                self.status.setText(f"A telepített yt-dlp ({current}) naprakész a(z) {payload.channel} csatornán.")
+                self.status.setText(tr("A telepített yt-dlp ({current}) naprakész a(z) {channel} csatornán.").format(current=current, channel=payload.channel))
                 self.install_button.setEnabled(payload.channel != self.settings.ytdlp_channel)
             self.settings.ytdlp_channel = payload.channel
             self.settings.save()
         elif kind in ("install", "restore"):
-            self.status.setText(("Telepítve: " if kind == "install" else "Visszaállítva: ") + str(payload))
+            self.status.setText((tr("Telepítve: ") if kind == "install" else tr("Visszaállítva: ")) + str(payload))
             self.version_labels["yt-dlp"].setText(str(payload))
             self.install_button.setEnabled(False)
         elif kind == "app" and APP_REPO:
             if payload is None:
-                self.app_status.setText("Nincs beállítva frissítési forrás.")
+                self.app_status.setText(tr("Nincs beállítva frissítési forrás."))
             else:
                 tag, page = payload
                 if updater.is_newer(tag, __version__):
-                    self.app_status.setText(f"Új verzió: {tag}. Letöltés a kiadási oldalról.")
+                    self.app_status.setText(tr("Új verzió: {tag}. Letöltés a kiadási oldalról.").format(tag=tag))
                     webbrowser.open(page)
                 else:
-                    self.app_status.setText("A program naprakész.")
+                    self.app_status.setText(tr("A program naprakész."))
 
 
 class LogWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Részletes napló")
+        self.setWindowTitle(tr("Részletes napló"))
         self.resize(900, 520)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -361,11 +372,11 @@ class LogWindow(QDialog):
         self.text.setPlainText("\n".join(bus.lines))
         layout.addWidget(self.text, 1)
         row = QHBoxLayout()
-        copy = button("Másolás", None, "copy")
+        copy = button(tr("Másolás"), None, "copy")
         copy.clicked.connect(lambda: QGuiApplication.clipboard().setText(self.text.toPlainText()))
-        folder = button("Naplómappa", None, "folder")
+        folder = button(tr("Naplómappa"), None, "folder")
         folder.clicked.connect(lambda: bus.path and open_path(bus.path.parent))
-        clear = button("Törlés", "ghost", "trash", "muted")
+        clear = button(tr("Törlés"), "ghost", "trash", "muted")
         clear.clicked.connect(self.text.clear)
         row.addWidget(copy)
         row.addWidget(folder)
@@ -389,7 +400,7 @@ class LogWindow(QDialog):
 class DetailsDialog(_Dialog):
     def __init__(self, title: str, message: str, details: str, warnings: list[str] = (), parent=None,
                  retry=None):
-        super().__init__("Részletek", parent)
+        super().__init__(tr("Részletek"), parent)
         self.resize(640, 420)
         self.root.addWidget(label(title, "h2", wrap=True))
         if message:
@@ -397,21 +408,21 @@ class DetailsDialog(_Dialog):
         for warning in warnings:
             self.root.addWidget(label("⚠ " + warning, "warnText", wrap=True))
         if details:
-            self.root.addWidget(label("Technikai részletek", "caption"))
+            self.root.addWidget(label(tr("Technikai részletek"), "caption"))
             text = QPlainTextEdit(details)
             text.setObjectName("log")
             text.setReadOnly(True)
             self.root.addWidget(text, 1)
         row = QHBoxLayout()
-        copy = button("Másolás", None, "copy")
+        copy = button(tr("Másolás"), None, "copy")
         copy.clicked.connect(lambda: QGuiApplication.clipboard().setText(f"{title}\n{message}\n\n{details}"))
         row.addWidget(copy)
         row.addStretch(1)
         if retry:
-            again = button("Újrapróbálás", "primary", "retry")
+            again = button(tr("Újrapróbálás"), "primary", "retry")
             again.clicked.connect(lambda: (retry(), self.accept()))
             row.addWidget(again)
-        close = button("Bezárás")
+        close = button(tr("Bezárás"))
         close.clicked.connect(self.accept)
         row.addWidget(close)
         self.root.addLayout(row)

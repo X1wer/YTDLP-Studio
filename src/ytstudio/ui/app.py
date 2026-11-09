@@ -8,7 +8,8 @@ from PySide6.QtCore import QLibraryInfo, QLocale, Qt, QTranslator
 from PySide6.QtGui import QFont, QGuiApplication
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from .. import APP_ID, APP_NAME, __version__
+from ..i18n import tr
+from .. import APP_ID, APP_NAME, __version__, i18n
 from ..settings import Settings
 from . import theme
 from .logbus import log
@@ -16,12 +17,12 @@ from .logbus import log
 
 def _excepthook(exc_type, exc, tb) -> None:
     text = "".join(traceback.format_exception(exc_type, exc, tb))
-    log("VÁRATLAN HIBA:\n" + text)
+    log(tr("VÁRATLAN HIBA:") + "\n" + text)
     app = QApplication.instance()
     if app is not None:
-        QMessageBox.critical(None, APP_NAME, "Váratlan hiba történt. A program tovább használható, "
-                             "a részleteket a Napló ablakban és a data/logs mappában találod.\n\n"
-                             f"{exc_type.__name__}: {exc}")
+        QMessageBox.critical(None, APP_NAME, tr("Váratlan hiba történt. A program tovább használható, "
+                                                "a részleteket a Napló ablakban és a data/logs mappában "
+                                                "találod.") + f"\n\n{exc_type.__name__}: {exc}")
 
 
 def create_app(argv: list[str] | None = None) -> QApplication:
@@ -37,11 +38,6 @@ def create_app(argv: list[str] | None = None) -> QApplication:
     app.setApplicationVersion(__version__)
     app.setOrganizationName(APP_ID)
     app.setStyle("Fusion")
-    # A Qt saját feliratai (pl. Igen/Nem gombok, szövegmező helyi menüje) magyarul.
-    translator = QTranslator(app)
-    if translator.load(QLocale(QLocale.Language.Hungarian), "qtbase", "_",
-                       QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
-        app.installTranslator(translator)
     font = QFont("Segoe UI Variable Text")
     if not font.exactMatch():
         font = QFont("Segoe UI")
@@ -64,6 +60,7 @@ def selftest(output: str) -> int:
     try:
         app = create_app([sys.argv[0]])
         settings = Settings.load()
+        result["language"] = apply_language(app, settings.language)
         theme.manager.apply(settings.theme)
         from .main_window import MainWindow
         window = MainWindow(settings)
@@ -88,6 +85,24 @@ def selftest(output: str) -> int:
     return code
 
 
+def apply_language(app: QApplication, setting: str) -> str:
+    """A felület nyelvének beállítása; magyarnál a Qt saját feliratai (Igen/Nem…) is magyarok."""
+    language = i18n.set_language(setting)
+    if language == "hu":
+        translator = QTranslator(app)
+        if translator.load(QLocale(QLocale.Language.Hungarian), "qtbase", "_",
+                           QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
+            app.installTranslator(translator)
+    return language
+
+
+def restart() -> None:
+    """Az alkalmazás újraindítása (pl. nyelvváltás után)."""
+    from PySide6.QtCore import QProcess
+    arguments = sys.argv[1:] if getattr(sys, "frozen", False) else sys.argv
+    QProcess.startDetached(sys.executable, arguments)
+
+
 def run() -> int:
     if "--selftest" in sys.argv:
         index = sys.argv.index("--selftest")
@@ -96,6 +111,7 @@ def run() -> int:
     app = create_app()
     sys.excepthook = _excepthook
     settings = Settings.load()
+    apply_language(app, settings.language)
     theme.manager.apply(settings.theme)
     try:
         hints = QGuiApplication.styleHints()

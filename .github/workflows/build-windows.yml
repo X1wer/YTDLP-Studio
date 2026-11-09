@@ -17,6 +17,8 @@ jobs:
           architecture: 'x64'
       - name: Build (tests + official yt-dlp, FFmpeg, Deno + PyInstaller)
         shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: ./build/build_windows.ps1
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v4

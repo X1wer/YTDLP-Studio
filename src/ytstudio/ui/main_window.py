@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QGridLayout, QHBoxLayo
                                QMainWindow, QMessageBox, QScrollArea, QSizePolicy, QSplitter,
                                QStackedWidget, QVBoxLayout, QWidget, QCheckBox, QFrame)
 
+from ..i18n import N_, current as current_language, tr
 from . import icons, theme
 from .dialogs import DetailsDialog, LogWindow, SettingsDialog, ToolsDialog, open_path
 from .logbus import log
@@ -30,26 +31,26 @@ from ..core import (AUDIO_KIND_LABELS, SUB_KIND_LABELS, DownloadOptions, Playlis
                     estimate_size, fmt_duration, fmt_size, fmt_time, normalize_url, safe_component,
                     sort_subtitles, validate_url)
 from ..errors import FriendlyError, explain
-from ..langs import base_code, language_name, matches_preference
+from ..langs import base_code, language_name, matches_preference, source_language
 from ..settings import Settings, app_dir
 
 VIDEO_FORMAT_HINTS = {
-    "mp4": "MP4 – a legszélesebb körben lejátszható (tévé, telefon, Windows).",
-    "mkv": "MKV – több hangsáv és felirat egy fájlban, az eredeti minőség megőrzésével.",
-    "webm": "WebM – nyílt formátum (VP9/AV1 videó, Opus hang).",
+    "mp4": N_("MP4 – a legszélesebb körben lejátszható (tévé, telefon, Windows)."),
+    "mkv": N_("MKV – több hangsáv és felirat egy fájlban, az eredeti minőség megőrzésével."),
+    "webm": N_("WebM – nyílt formátum (VP9/AV1 videó, Opus hang)."),
 }
 AUDIO_FORMAT_HINTS = {
-    "mp3": "MP3 – bármilyen eszközön lejátszható.",
-    "m4a": "M4A (AAC) – jó minőség, Apple-eszközökön is; gyakran átkódolás nélkül.",
-    "aac": "AAC – nyers AAC hangfájl.",
-    "opus": "Opus – kis méret, kiváló minőség; gyakran átkódolás nélkül.",
-    "flac": "FLAC – veszteségmentes tárolás (nagy fájl; a forrásnál jobb nem lesz).",
-    "wav": "WAV – tömörítetlen, nagyon nagy fájl.",
-    "original": "Eredeti – a legjobb hangsáv újrakódolás nélkül (általában Opus vagy AAC).",
+    "mp3": N_("MP3 – bármilyen eszközön lejátszható."),
+    "m4a": N_("M4A (AAC) – jó minőség, Apple-eszközökön is; gyakran átkódolás nélkül."),
+    "aac": N_("AAC – nyers AAC hangfájl."),
+    "opus": N_("Opus – kis méret, kiváló minőség; gyakran átkódolás nélkül."),
+    "flac": N_("FLAC – veszteségmentes tárolás (nagy fájl; a forrásnál jobb nem lesz)."),
+    "wav": N_("WAV – tömörítetlen, nagyon nagy fájl."),
+    "original": N_("Eredeti – a legjobb hangsáv újrakódolás nélkül (általában Opus vagy AAC)."),
 }
-CODEC_CHOICES = [("auto", "Automatikus (ajánlott)"), ("h264", "H.264 – legjobb kompatibilitás, max. 1080p"),
-                 ("vp9", "VP9"), ("av1", "AV1 – kisebb fájl, újabb eszközökhöz")]
-AUDIO_QUALITY = [("best", "Legjobb (változó bitráta)"), ("320", "320 kb/s"), ("256", "256 kb/s"),
+CODEC_CHOICES = [("auto", N_("Automatikus (ajánlott)")), ("h264", N_("H.264 – legjobb kompatibilitás, max. 1080p")),
+                 ("vp9", "VP9"), ("av1", N_("AV1 – kisebb fájl, újabb eszközökhöz"))]
+AUDIO_QUALITY = [("best", N_("Legjobb (változó bitráta)")), ("320", "320 kb/s"), ("256", "256 kb/s"),
                  ("192", "192 kb/s"), ("128", "128 kb/s")]
 
 
@@ -160,15 +161,15 @@ class MainWindow(QMainWindow):
         version = label(f"v{__version__}", "chip")
         row.addWidget(version)
         row.addStretch(1)
-        self.theme_button = button("", "ghost", "auto-theme", "muted", "Téma váltása")
+        self.theme_button = button("", "ghost", "auto-theme", "muted", tr("Téma váltása"))
         self.theme_button.setFixedSize(36, 34)
         self.theme_button.clicked.connect(self._cycle_theme)
-        log_button = button("Napló", "ghost", "log", "muted", "Részletes technikai napló")
+        log_button = button(tr("Napló"), "ghost", "log", "muted", tr("Részletes technikai napló"))
         log_button.clicked.connect(self._show_log)
-        tools_button = button("Eszközök és frissítés", "ghost", "update", "muted",
-                              "Összetevők verziói, yt-dlp frissítése")
+        tools_button = button(tr("Eszközök és frissítés"), "ghost", "update", "muted",
+                              tr("Összetevők verziói, yt-dlp frissítése"))
         tools_button.clicked.connect(self._show_tools)
-        settings_button = button("Beállítások", "ghost", "settings", "muted")
+        settings_button = button(tr("Beállítások"), "ghost", "settings", "muted")
         settings_button.clicked.connect(self._show_settings)
         for b in (self.theme_button, log_button, tools_button, settings_button):
             row.addWidget(b)
@@ -180,16 +181,16 @@ class MainWindow(QMainWindow):
         row.setSpacing(8)
         self.url_edit = QLineEdit()
         self.url_edit.setProperty("size", "large")
-        self.url_edit.setPlaceholderText("Illeszd be a videó vagy lejátszási lista linkjét (YouTube és sok más oldal)…")
+        self.url_edit.setPlaceholderText(tr("Illeszd be a videó vagy lejátszási lista linkjét (YouTube és sok más oldal)…"))
         self.url_edit.setClearButtonEnabled(True)
         self.url_edit.addAction(icons.icon("link", theme.c("faint")), QLineEdit.ActionPosition.LeadingPosition)
         self._url_icon_action = self.url_edit.actions()[-1]
         self.url_edit.returnPressed.connect(self._analyze)
         row.addWidget(self.url_edit, 1)
-        self.paste_button = button("Beillesztés", None, "paste", "text", "Link beillesztése a vágólapról")
+        self.paste_button = button(tr("Beillesztés"), None, "paste", "text", tr("Link beillesztése a vágólapról"))
         self.paste_button.clicked.connect(self._paste)
         row.addWidget(self.paste_button)
-        self.analyze_button = button("Elemzés", "primary", "search", large=True)
+        self.analyze_button = button(tr("Elemzés"), "primary", "search", large=True)
         self.analyze_button.setMinimumWidth(120)
         self.analyze_button.clicked.connect(self._analyze_or_cancel)
         row.addWidget(self.analyze_button)
@@ -200,11 +201,11 @@ class MainWindow(QMainWindow):
         self.spinner.hide()
         self.status_icon = IconLabel("check-circle", "success", 16)
         self.status_icon.hide()
-        self.status_label = label("Másold be egy videó linkjét, majd kattints az Elemzés gombra (vagy nyomj Entert).", "caption")
+        self.status_label = label(tr("Másold be egy videó linkjét, majd kattints az Elemzés gombra (vagy nyomj Entert)."), "caption")
         status.addWidget(self.spinner)
         status.addWidget(self.status_icon)
         status.addWidget(self.status_label, 1)
-        self.load_list_button = button("A teljes lejátszási lista betöltése", "link")
+        self.load_list_button = button(tr("A teljes lejátszási lista betöltése"), "link")
         self.load_list_button.hide()
         self.load_list_button.clicked.connect(self._load_full_playlist)
         status.addWidget(self.load_list_button)
@@ -222,12 +223,12 @@ class MainWindow(QMainWindow):
         icon.setPixmap(app_icon().pixmap(QSize(64, 64)))
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card.body.addWidget(icon)
-        title = label("Videó, zene vagy felirat letöltése néhány kattintással", "emptyTitle", wrap=True)
+        title = label(tr("Videó, zene vagy felirat letöltése néhány kattintással"), "emptyTitle", wrap=True)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card.body.addWidget(title)
-        steps = [("1", "Illeszd be a linket", "YouTube-videó, lejátszási lista vagy más támogatott oldal."),
-                 ("2", "Válaszd ki, mit kérsz", "Videó vagy csak hang, minőség, hangsávok és feliratok."),
-                 ("3", "Töltsd le", "Azonnal vagy a letöltési sorba téve – akár csak egy részletet.")]
+        steps = [("1", tr("Illeszd be a linket"), tr("YouTube-videó, lejátszási lista vagy más támogatott oldal.")),
+                 ("2", tr("Válaszd ki, mit kérsz"), tr("Videó vagy csak hang, minőség, hangsávok és feliratok.")),
+                 ("3", tr("Töltsd le"), tr("Azonnal vagy a letöltési sorba téve – akár csak egy részletet."))]
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)
         grid.setVerticalSpacing(10)
@@ -243,8 +244,8 @@ class MainWindow(QMainWindow):
         grid.setColumnStretch(1, 1)
         card.body.addSpacing(8)
         card.body.addLayout(grid)
-        note = label("Tipp: a linket az ablakra húzva is beillesztheted. Csak olyan tartalmat tölts le, "
-                     "amelyhez jogod van.", "faint", wrap=True)
+        note = label(tr("Tipp: a linket az ablakra húzva is beillesztheted. Csak olyan tartalmat tölts le, "
+                     "amelyhez jogod van."), "faint", wrap=True)
         note.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card.body.addSpacing(6)
         card.body.addWidget(note)
@@ -282,9 +283,9 @@ class MainWindow(QMainWindow):
         info.addStretch(1)
         buttons = QHBoxLayout()
         buttons.setSpacing(6)
-        self.preview_button = button("Előnézet", None, "play", "accent", "A videó lejátszása az alkalmazásban")
+        self.preview_button = button(tr("Előnézet"), None, "play", "accent", tr("A videó lejátszása az alkalmazásban"))
         self.preview_button.clicked.connect(self._start_preview)
-        self.browser_button = button("Megnyitás böngészőben", "ghost", "external", "muted")
+        self.browser_button = button(tr("Megnyitás böngészőben"), "ghost", "external", "muted")
         self.browser_button.clicked.connect(self._open_in_browser)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.browser_button)
@@ -295,23 +296,23 @@ class MainWindow(QMainWindow):
         return card
 
     def _build_playlist_card(self) -> Card:
-        card = Card("Lejátszási lista", "list")
+        card = Card(tr("Lejátszási lista"), "list")
         self.playlist_card = card
         self.pl_title = label("", "h1", wrap=True)
         self.pl_meta = label("", "muted")
         card.body.addWidget(self.pl_title)
         card.body.addWidget(self.pl_meta)
-        self.pl_list = CheckList(placeholder="Keresés a videók között…", empty_text="A lista üres.")
+        self.pl_list = CheckList(placeholder=tr("Keresés a videók között…"), empty_text=tr("A lista üres."))
         self.pl_list.setMinimumHeight(320)
-        all_button = button("Mind", "ghost", tooltip="Az összes látható videó kijelölése")
+        all_button = button(tr("Mind"), "ghost", tooltip=tr("Az összes látható videó kijelölése"))
         all_button.clicked.connect(self.pl_list.select_visible)
         self.pl_list.footer.insertWidget(2, all_button)
         self.pl_list.selectionChanged.connect(self._update_summary)
         card.body.addWidget(self.pl_list, 1)
         opts = QHBoxLayout()
-        self.pl_subfolder = QCheckBox("Mentés a lista nevével ellátott almappába")
+        self.pl_subfolder = QCheckBox(tr("Mentés a lista nevével ellátott almappába"))
         self.pl_subfolder.setChecked(True)
-        self.pl_numbering = QCheckBox("Sorszám a fájlnév elejére")
+        self.pl_numbering = QCheckBox(tr("Sorszám a fájlnév elejére"))
         self.pl_numbering.setChecked(True)
         opts.addWidget(self.pl_subfolder)
         opts.addWidget(self.pl_numbering)
@@ -320,8 +321,8 @@ class MainWindow(QMainWindow):
         return card
 
     def _build_options_card(self) -> Card:
-        card = Card("Mit szeretnél letölteni?", "download")
-        self.mode = SegmentedControl([("video", "Videó"), ("audio", "Csak hang"), ("subtitles", "Csak felirat")],
+        card = Card(tr("Mit szeretnél letölteni?"), "download")
+        self.mode = SegmentedControl([("video", tr("Videó")), ("audio", tr("Csak hang")), ("subtitles", tr("Csak felirat"))],
                                      large=True, icons_map={"video": "video", "audio": "audio", "subtitles": "subtitles"})
         self.mode.changed.connect(self._mode_changed)
         card.body.addWidget(self.mode)
@@ -334,10 +335,10 @@ class MainWindow(QMainWindow):
         self.container = SegmentedControl([("mp4", "MP4"), ("mkv", "MKV"), ("webm", "WebM")])
         self.container.changed.connect(self._options_changed)
         self.container_hint = label("", "caption", wrap=True)
-        self.quality = ChoiceBox([("best", "Legjobb elérhető")])
+        self.quality = ChoiceBox([("best", tr("Legjobb elérhető"))])
         self.quality.setMinimumWidth(260)
         self.quality.currentIndexChanged.connect(self._options_changed)
-        l1, l2 = label("Formátum", "muted"), label("Minőség", "muted")
+        l1, l2 = label(tr("Formátum"), "muted"), label(tr("Minőség"), "muted")
         grid.addWidget(l1, 0, 0)
         grid.addWidget(self.container, 0, 1, Qt.AlignmentFlag.AlignLeft)
         grid.addWidget(self.container_hint, 1, 1)
@@ -346,12 +347,12 @@ class MainWindow(QMainWindow):
         self.video_widgets = [l1, l2, self.container, self.container_hint, self.quality]
         # hang
         self.audio_format = SegmentedControl([("mp3", "MP3"), ("m4a", "M4A"), ("aac", "AAC"), ("opus", "Opus"),
-                                              ("flac", "FLAC"), ("wav", "WAV"), ("original", "Eredeti")])
+                                              ("flac", "FLAC"), ("wav", "WAV"), ("original", tr("Eredeti"))])
         self.audio_format.changed.connect(self._options_changed)
         self.audio_hint = label("", "caption", wrap=True)
-        self.audio_quality = ChoiceBox(AUDIO_QUALITY)
+        self.audio_quality = ChoiceBox([(v, tr(text)) for v, text in AUDIO_QUALITY])
         self.audio_quality.currentIndexChanged.connect(self._options_changed)
-        a1, self.audio_quality_label = label("Formátum", "muted"), label("Minőség", "muted")
+        a1, self.audio_quality_label = label(tr("Formátum"), "muted"), label(tr("Minőség"), "muted")
         grid.addWidget(a1, 3, 0)
         grid.addWidget(self.audio_format, 3, 1, Qt.AlignmentFlag.AlignLeft)
         grid.addWidget(self.audio_hint, 4, 1)
@@ -359,24 +360,24 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.audio_quality, 5, 1, Qt.AlignmentFlag.AlignLeft)
         self.audio_widgets = [a1, self.audio_format, self.audio_hint, self.audio_quality_label, self.audio_quality]
         # felirat mód
-        self.subs_mode_hint = label("Csak a lenti „Feliratok” listában kijelölt feliratok töltődnek le, "
-                                    "videó nélkül.", "caption", wrap=True)
+        self.subs_mode_hint = label(tr("Csak a lenti „Feliratok” listában kijelölt feliratok töltődnek le, "
+                                    "videó nélkül."), "caption", wrap=True)
         grid.addWidget(self.subs_mode_hint, 6, 0, 1, 2)
         grid.setColumnStretch(1, 1)
         card.body.addLayout(grid)
         # haladó
-        self.advanced = Collapsible("További beállítások")
+        self.advanced = Collapsible(tr("További beállítások"))
         adv = QGridLayout()
         adv.setHorizontalSpacing(14)
         adv.setVerticalSpacing(8)
-        self.codec_label = label("Videókodek", "muted")
-        self.codec = ChoiceBox(CODEC_CHOICES)
+        self.codec_label = label(tr("Videókodek"), "muted")
+        self.codec = ChoiceBox([(v, tr(text)) for v, text in CODEC_CHOICES])
         self.codec.currentIndexChanged.connect(self._options_changed)
         adv.addWidget(self.codec_label, 0, 0)
         adv.addWidget(self.codec, 0, 1, Qt.AlignmentFlag.AlignLeft)
-        self.embed_metadata = QCheckBox("Metaadatok beágyazása (cím, előadó, dátum, hangsávnyelvek)")
-        self.embed_thumbnail = QCheckBox("Borítókép beágyazása")
-        self.embed_chapters = QCheckBox("Fejezetjelölők beágyazása")
+        self.embed_metadata = QCheckBox(tr("Metaadatok beágyazása (cím, előadó, dátum, hangsávnyelvek)"))
+        self.embed_thumbnail = QCheckBox(tr("Borítókép beágyazása"))
+        self.embed_chapters = QCheckBox(tr("Fejezetjelölők beágyazása"))
         adv.addWidget(self.embed_metadata, 1, 0, 1, 2)
         adv.addWidget(self.embed_thumbnail, 2, 0, 1, 2)
         adv.addWidget(self.embed_chapters, 3, 0, 1, 2)
@@ -401,12 +402,12 @@ class MainWindow(QMainWindow):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(12)
         self.tracks_row = row_widget
-        self.audio_card = Card("Hangsávok", "audio")
+        self.audio_card = Card(tr("Hangsávok"), "audio")
         self.audio_count = label("", "accentChip")
         self.audio_card.header_right.addWidget(self.audio_count)
-        self.audio_list = CheckList(placeholder="Nyelv keresése…",
-                                    kinds=[("original", "Eredeti"), ("dubbed", "Szinkron"),
-                                           ("dubbed-auto", "AI-szinkron"), ("descriptive", "Narrált")])
+        self.audio_list = CheckList(placeholder=tr("Nyelv keresése…"),
+                                    kinds=[("original", tr("Eredeti")), ("dubbed", tr("Szinkron")),
+                                           ("dubbed-auto", tr("AI-szinkron")), ("descriptive", tr("Narrált"))])
         self.audio_list.selectionChanged.connect(self._options_changed)
         self.audio_card.body.addWidget(self.audio_list, 1)
         self.audio_single = label("", "muted", wrap=True)
@@ -416,18 +417,18 @@ class MainWindow(QMainWindow):
         self.audio_card.body.addWidget(self.audio_note)
         self.audio_card.setFixedHeight(380)
         row.addWidget(self.audio_card, 1)
-        self.subs_card = Card("Feliratok", "subtitles")
+        self.subs_card = Card(tr("Feliratok"), "subtitles")
         self.subs_count = label("", "accentChip")
         self.subs_card.header_right.addWidget(self.subs_count)
-        self.sub_list = CheckList(placeholder="Nyelv keresése…",
-                                  kinds=[("manual", "Eredeti"), ("auto", "Automatikus"), ("translated", "Fordítás")])
+        self.sub_list = CheckList(placeholder=tr("Nyelv keresése…"),
+                                  kinds=[("manual", tr("Eredeti")), ("auto", tr("Automatikus")), ("translated", tr("Fordítás"))])
         self.sub_list.selectionChanged.connect(self._options_changed)
-        star = button("★ Preferált", "ghost", tooltip="A beállításokban megadott preferált nyelvek kijelölése "
-                                                      "(eredeti felirat, ha van, különben automatikus)")
+        star = button(tr("★ Preferált"), "ghost", tooltip=tr("A beállításokban megadott preferált nyelvek kijelölése "
+                                                      "(eredeti felirat, ha van, különben automatikus)"))
         star.clicked.connect(self._select_preferred_subs)
         self.sub_list.footer.insertWidget(2, star)
         self.subs_card.body.addWidget(self.sub_list, 1)
-        self.subs_none = label("Ehhez a videóhoz nem érhető el felirat.", "muted", wrap=True)
+        self.subs_none = label(tr("Ehhez a videóhoz nem érhető el felirat."), "muted", wrap=True)
         self.subs_none.hide()
         self.subs_card.body.addWidget(self.subs_none)
         self.sub_options = QWidget()
@@ -435,14 +436,14 @@ class MainWindow(QMainWindow):
         sub_opts = QHBoxLayout(self.sub_options)
         sub_opts.setContentsMargins(0, 0, 0, 0)
         sub_opts.setSpacing(8)
-        sub_opts.addWidget(label("Formátum", "muted"))
+        sub_opts.addWidget(label(tr("Formátum"), "muted"))
         self.sub_format = SegmentedControl([("srt", "SRT"), ("vtt", "VTT")])
         self.sub_format.set_value(self.settings.subtitle_format)
         sub_opts.addWidget(self.sub_format)
-        self.embed_subs = QCheckBox("Beágyazás a videóba")
+        self.embed_subs = QCheckBox(tr("Beágyazás a videóba"))
         self.embed_subs.setChecked(self.settings.embed_subtitles)
-        self.embed_subs.setToolTip("A kijelölt feliratok a videófájlba kerülnek (nyelvi címkével). "
-                                   "Ha ez nem sikerül, külön fájlként maradnak meg.")
+        self.embed_subs.setToolTip(tr("A kijelölt feliratok a videófájlba kerülnek (nyelvi címkével). "
+                                   "Ha ez nem sikerül, külön fájlként maradnak meg."))
         sub_opts.addWidget(self.embed_subs)
         sub_opts.addStretch(1)
         self.subs_card.body.addWidget(self.sub_options)
@@ -451,37 +452,37 @@ class MainWindow(QMainWindow):
         return row_widget
 
     def _build_playlist_lang_card(self) -> Card:
-        card = Card("Nyelvek a lista videóihoz", "subtitles")
+        card = Card(tr("Nyelvek a lista videóihoz"), "subtitles")
         self.pl_lang_card = card
         grid = QGridLayout()
         grid.setHorizontalSpacing(14)
         grid.setVerticalSpacing(10)
-        self.pl_subs = QCheckBox("Feliratok letöltése, ha elérhetők")
+        self.pl_subs = QCheckBox(tr("Feliratok letöltése, ha elérhetők"))
         self.pl_sub_langs = QLineEdit(", ".join(self.settings.preferred_sub_langs))
         self.pl_sub_langs.setPlaceholderText("pl. hu, en")
         self.pl_sub_langs.setMaximumWidth(220)
         grid.addWidget(self.pl_subs, 0, 0)
-        grid.addWidget(label("Nyelvek:", "muted"), 0, 1)
+        grid.addWidget(label(tr("Nyelvek:"), "muted"), 0, 1)
         grid.addWidget(self.pl_sub_langs, 0, 2, Qt.AlignmentFlag.AlignLeft)
-        from .dialogs import LANG_CHOICES
-        self.pl_audio_lang = ChoiceBox(LANG_CHOICES)
+        from .dialogs import lang_choices
+        self.pl_audio_lang = ChoiceBox(lang_choices())
         self.pl_audio_lang.set_value(self.settings.preferred_audio_lang)
-        grid.addWidget(label("Hangsáv:", "muted"), 1, 0)
+        grid.addWidget(label(tr("Hangsáv:"), "muted"), 1, 0)
         grid.addWidget(self.pl_audio_lang, 1, 1, 1, 2, Qt.AlignmentFlag.AlignLeft)
         grid.setColumnStretch(3, 1)
         card.body.addLayout(grid)
-        card.body.addWidget(label("A videónként eltérő hangsávok és feliratok közül a megadott nyelveket "
-                                  "választja; ha egy videónál nincs ilyen, az alapértelmezettet tölti le.",
+        card.body.addWidget(label(tr("A videónként eltérő hangsávok és feliratok közül a megadott nyelveket "
+                                  "választja; ha egy videónál nincs ilyen, az alapértelmezettet tölti le."),
                                   "caption", wrap=True))
         return card
 
     def _build_trim_card(self) -> Card:
-        card = Card("Időbeli vágás", "scissors")
+        card = Card(tr("Időbeli vágás"), "scissors")
         self.trim_card = card
-        self.trim_switch = ToggleSwitch("Csak egy részlet letöltése")
+        self.trim_switch = ToggleSwitch(tr("Csak egy részlet letöltése"))
         self.trim_switch.toggled.connect(self._trim_toggled)
         card.header_right.addWidget(self.trim_switch)
-        self.trim_off_label = label("A teljes videó letöltődik. Kapcsold be, ha csak egy szakaszra van szükséged.",
+        self.trim_off_label = label(tr("A teljes videó letöltődik. Kapcsold be, ha csak egy szakaszra van szükséged."),
                                     "caption", wrap=True)
         card.body.addWidget(self.trim_off_label)
         self.trim_body = QWidget()
@@ -495,35 +496,35 @@ class MainWindow(QMainWindow):
         times = QHBoxLayout()
         times.setSpacing(8)
         self.start_edit = TimeEdit("00:00:00")
-        self.end_edit = TimeEdit("vége")
+        self.end_edit = TimeEdit(tr("vége"))
         self.start_edit.timeChanged.connect(self._time_edited)
         self.end_edit.timeChanged.connect(self._time_edited)
-        times.addWidget(label("Kezdés", "muted"))
+        times.addWidget(label(tr("Kezdés"), "muted"))
         times.addWidget(self.start_edit)
         times.addSpacing(8)
-        times.addWidget(label("Vége", "muted"))
+        times.addWidget(label(tr("Vége"), "muted"))
         times.addWidget(self.end_edit)
         times.addSpacing(8)
         self.clip_length = label("", "accentChip")
         times.addWidget(self.clip_length)
         times.addStretch(1)
-        self.chapter_box = ChoiceBox([("", "Fejezet kiválasztása…")])
+        self.chapter_box = ChoiceBox([("", tr("Fejezet kiválasztása…"))])
         self.chapter_box.setMaximumWidth(280)
         self.chapter_box.currentIndexChanged.connect(self._chapter_selected)
         times.addWidget(self.chapter_box)
         body.addLayout(times)
         method = QHBoxLayout()
         method.setSpacing(8)
-        self.accurate = QCheckBox("Pontos vágás (lassabb, a vágott részt újrakódolja)")
+        self.accurate = QCheckBox(tr("Pontos vágás (lassabb, a vágott részt újrakódolja)"))
         self.accurate.setChecked(self.settings.accurate_cut)
         self.accurate.toggled.connect(self._options_changed)
         method.addWidget(self.accurate)
         method.addStretch(1)
-        self.cut_method = ChoiceBox([("sections", "Csak a szakasz letöltése (gyors)"),
-                                     ("full", "Teljes letöltés, utána vágás (megbízható)")])
+        self.cut_method = ChoiceBox([("sections", tr("Csak a szakasz letöltése (gyors)")),
+                                     ("full", tr("Teljes letöltés, utána vágás (megbízható)"))])
         self.cut_method.set_value(self.settings.cut_method)
-        self.cut_method.setToolTip("Ha a gyors mód egy oldalon nem működik, a teljes videó letöltése után "
-                                   "a program helyben vágja ki a részletet.")
+        self.cut_method.setToolTip(tr("Ha a gyors mód egy oldalon nem működik, a teljes videó letöltése után "
+                                   "a program helyben vágja ki a részletet."))
         self.cut_method.currentIndexChanged.connect(self._options_changed)
         method.addWidget(self.cut_method)
         body.addLayout(method)
@@ -551,14 +552,14 @@ class MainWindow(QMainWindow):
         col.addWidget(self.dest_label)
         col.addWidget(self.summary_label)
         row.addLayout(col, 1)
-        change = button("Módosítás", "ghost", tooltip="Mentési mappa kiválasztása")
+        change = button(tr("Módosítás"), "ghost", tooltip=tr("Mentési mappa kiválasztása"))
         change.clicked.connect(self._choose_dest)
         row.addWidget(change)
-        self.queue_button = button("Hozzáadás a sorhoz", None, "queue", "text",
-                                   "A sor végére kerül, és sorra kerülve automatikusan indul")
+        self.queue_button = button(tr("Hozzáadás a sorhoz"), None, "queue", "text",
+                                   tr("A sor végére kerül, és sorra kerülve automatikusan indul"))
         self.queue_button.clicked.connect(lambda: self._download(False))
-        self.download_button = button("Letöltés most", "primary", "download",
-                                      tooltip="Azonnal elindul, a sorban várakozókat megelőzve (Ctrl+Enter)",
+        self.download_button = button(tr("Letöltés most"), "primary", "download",
+                                      tooltip=tr("Azonnal elindul, a sorban várakozókat megelőzve (Ctrl+Enter)"),
                                       large=True)
         self.download_button.clicked.connect(lambda: self._download(True))
         row.addWidget(self.queue_button)
@@ -585,8 +586,8 @@ class MainWindow(QMainWindow):
         self._url_icon_action.setIcon(icons.icon("link", theme.c("faint")))
         name = {"system": "auto-theme", "light": "sun", "dark": "moon"}[theme.manager.mode]
         set_icon(self.theme_button, name, "muted")
-        self.theme_button.setToolTip({"system": "Téma: rendszer szerint", "light": "Téma: világos",
-                                      "dark": "Téma: sötét"}[theme.manager.mode] + " (kattints a váltáshoz)")
+        self.theme_button.setToolTip({"system": tr("Téma: rendszer szerint"), "light": tr("Téma: világos"),
+                                      "dark": tr("Téma: sötét")}[theme.manager.mode] + tr(" (kattints a váltáshoz)"))
         theme.set_dark_title_bar(self, theme.manager.dark)
 
     def _cycle_theme(self) -> None:
@@ -603,7 +604,7 @@ class MainWindow(QMainWindow):
         text = QGuiApplication.clipboard().text()
         url = normalize_url(text)
         if not url:
-            self._set_status("error", "A vágólap üres, vagy nem tartalmaz linket.")
+            self._set_status("error", tr("A vágólap üres, vagy nem tartalmaz linket."))
             return
         self.url_edit.setText(url)
         if self.settings.auto_analyze_paste:
@@ -615,7 +616,7 @@ class MainWindow(QMainWindow):
             self._cancel = None
             self._token += 1
             self._busy(False)
-            self._set_status("info", "Az elemzés megszakítva.")
+            self._set_status("info", tr("Az elemzés megszakítva."))
             return
         self._analyze()
 
@@ -637,9 +638,9 @@ class MainWindow(QMainWindow):
         cancel = threading.Event()
         self._cancel = cancel
         self._busy(True)
-        self._set_status("busy", "Videó adatainak lekérése… (néhány másodperc)")
+        self._set_status("busy", tr("Videó adatainak lekérése… (néhány másodperc)"))
         cookies = self.settings.cookies_browser
-        log(f"Elemzés indítása: {url}")
+        log(tr("Elemzés indítása: {url}").format(url=url))
 
         def work():
             try:
@@ -656,7 +657,7 @@ class MainWindow(QMainWindow):
         threading.Thread(target=work, name="analyze", daemon=True).start()
 
     def _busy(self, busy: bool) -> None:
-        self.analyze_button.setText("Mégse" if busy else "Elemzés")
+        self.analyze_button.setText(tr("Mégse") if busy else tr("Elemzés"))
         set_icon(self.analyze_button, "close" if busy else "search", "accent_text")
         if not busy:
             self._cancel = None
@@ -691,18 +692,18 @@ class MainWindow(QMainWindow):
             return
         self._busy(False)
         url, friendly, details = payload
-        self._set_status("error", "Az elemzés nem sikerült.")
-        actions = [("Újrapróbálás", lambda: self._analyze(url))]
+        self._set_status("error", tr("Az elemzés nem sikerült."))
+        actions = [(tr("Újrapróbálás"), lambda: self._analyze(url))]
         if details:
-            actions.append(("Részletek", lambda: DetailsDialog(friendly.title, friendly.message, details,
+            actions.append((tr("Részletek"), lambda: DetailsDialog(friendly.title, friendly.message, details,
                                                                   parent=self).exec()))
         if friendly.throttled:
             # A sorban várakozó letöltések se terheljék tovább a szolgáltatót.
             self.manager.start_cooldown(reason=friendly.kind)
         if friendly.kind == "login":
-            actions.append(("Beállítások…", self._show_settings))
-        elif "frissítsd" in friendly.message:
-            actions.append(("yt-dlp frissítése", self._show_tools))
+            actions.append((tr("Beállítások…"), self._show_settings))
+        elif friendly.kind in ("update", "bot_check"):
+            actions.append((tr("yt-dlp frissítése"), self._show_tools))
         self.banner.show_message("warning" if friendly.throttled or friendly.kind == "login" else "error",
                                  friendly.title, friendly.message, actions)
 
@@ -736,22 +737,22 @@ class MainWindow(QMainWindow):
         if info.heights:
             chips.append(info.quality_label(info.heights[0]))
         if info.multi_language_audio:
-            chips.append(f"{len(info.audio_tracks)} hangsáv")
+            chips.append(tr("{n} hangsáv").format(n=len(info.audio_tracks)))
         if info.subtitles:
-            chips.append(f"{len(info.subtitles)} felirat")
+            chips.append(tr("{n} felirat").format(n=len(info.subtitles)))
         if info.chapters:
-            chips.append(f"{len(info.chapters)} fejezet")
+            chips.append(tr("{n} fejezet").format(n=len(info.chapters)))
         for text in chips:
             self.chips.addWidget(label(text, "chip"))
         self.chips.addStretch(1)
         notices = []
         if info.is_live:
-            notices.append("Élő közvetítés vagy közelgő premier: a letöltés a közvetítés végéig tarthat, vágás nem lehetséges.")
+            notices.append(tr("Élő közvetítés vagy közelgő premier: a letöltés a közvetítés végéig tarthat, vágás nem lehetséges."))
         self.notice.setText("\n".join(notices))
         self.notice.setVisible(bool(notices))
         self.thumb.badge = fmt_duration(info.duration) if info.duration else ""
         self.thumb.set_pixmap(None)
-        self.thumb.placeholder = "Nincs előnézeti kép"
+        self.thumb.placeholder = tr("Nincs előnézeti kép")
         playable = bool(info.preview_url) and _multimedia_available()
         self.thumb.set_playable(playable)
         self.preview_button.setVisible(playable)
@@ -759,7 +760,7 @@ class MainWindow(QMainWindow):
         # minőség
         items = []
         best = info.quality_label(info.heights[0]) if info.heights else ""
-        items.append(("best", f"Legjobb elérhető – {best}" if best else "Legjobb elérhető"))
+        items.append(("best", tr("Legjobb elérhető – {quality}").format(quality=best) if best else tr("Legjobb elérhető")))
         for h in info.heights:
             items.append((str(h), info.quality_label(h)))
         self.quality.set_items(items, keep=False)
@@ -770,16 +771,16 @@ class MainWindow(QMainWindow):
                 self.quality.set_value(str(fitting[0]))
         has_webm = any(f["vcodec"].lower().startswith(("vp9", "vp09", "av01", "vp8")) for f in info.formats)
         self.container.set_option_enabled("webm", has_webm or not info.formats,
-                                          "" if has_webm else "Ennél a videónál nincs WebM-kompatibilis (VP9/AV1) videósáv.")
+                                          "" if has_webm else tr("Ennél a videónál nincs WebM-kompatibilis (VP9/AV1) videósáv."))
         if not has_webm and self.container.value() == "webm":
             self.container.set_value("mp4")
         # hangsávok
         preferred_audio = self.settings.preferred_audio_lang
         audio_items = []
         for t in info.audio_tracks:
-            detail = AUDIO_KIND_LABELS.get(t.kind, "")
+            detail = tr(AUDIO_KIND_LABELS.get(t.kind, ""))
             if t.kind == "default":
-                detail = "alapértelmezett hangsáv"
+                detail = tr("alapértelmezett hangsáv")
             if t.detail:
                 detail += " · " + t.detail
             audio_items.append({"key": t.key, "text": t.name, "detail": detail, "kind": t.kind,
@@ -789,8 +790,8 @@ class MainWindow(QMainWindow):
         multi = len(info.audio_tracks) > 1
         self.audio_list.setVisible(multi)
         self.audio_single.setText(
-            "Ennek a videónak egy hangsávja van, ez kerül a letöltésbe." if info.audio_tracks
-            else "A forrás nem ad külön hangsáv-információt; az alapértelmezett hang töltődik le.")
+            tr("Ennek a videónak egy hangsávja van, ez kerül a letöltésbe.") if info.audio_tracks
+            else tr("A forrás nem ad külön hangsáv-információt; az alapértelmezett hang töltődik le."))
         self.audio_single.setVisible(not multi)
         self.audio_count.setText(f"{len(info.audio_tracks)}" if multi else "")
         self.audio_count.setVisible(multi)
@@ -799,16 +800,16 @@ class MainWindow(QMainWindow):
         sub_items = []
         for s in subs:
             lang = s.language[:-5] if s.language.endswith("-orig") else s.language
-            detail = SUB_KIND_LABELS.get(s.kind, s.kind)
+            detail = tr(SUB_KIND_LABELS.get(s.kind, s.kind))
             if s.kind == "auto" and s.language.endswith("-orig"):
-                detail += " – eredeti beszéd"
+                detail += tr(" – eredeti beszéd")
             if s.kind == "translated" and s.source:
-                detail += f" ({language_name(s.source).lower()} nyelvből)"
+                detail += " " + tr("({language} nyelvből)").format(language=source_language(s.source))
             detail += f" · {s.language}"
             tooltip = ""
             if s.kind == "translated":
-                detail += " · a YouTube jelenleg gyakran nem adja ki"
-                tooltip = engine.TRANSLATED_UNAVAILABLE
+                detail += " · " + tr("a YouTube jelenleg gyakran nem adja ki")
+                tooltip = tr(engine.TRANSLATED_UNAVAILABLE)
             sub_items.append({"key": s.key, "text": language_name(lang, s.name or s.language), "detail": detail,
                               "kind": s.kind, "star": matches_preference(lang, self.settings.preferred_sub_langs),
                               "search": f"{s.language} {s.name}", "tooltip": tooltip})
@@ -825,23 +826,23 @@ class MainWindow(QMainWindow):
             else:
                 card.setMinimumHeight(0)
                 card.setMaximumHeight(16777215)
-        self.mode.set_option_enabled("subtitles", bool(subs), "" if subs else "Ehhez a videóhoz nincs felirat.")
+        self.mode.set_option_enabled("subtitles", bool(subs), "" if subs else tr("Ehhez a videóhoz nincs felirat."))
         if not subs and self.mode.value() == "subtitles":
             self.mode.set_value("video")
         # vágás
         can_trim = bool(info.duration) and not info.is_live
         self.trim_switch.setChecked(False)
         self.trim_switch.setEnabled(can_trim)
-        self.trim_off_label.setText("A teljes videó letöltődik. Kapcsold be, ha csak egy szakaszra van szükséged."
-                                    if can_trim else "Ennél a tartalomnál a vágás nem érhető el (ismeretlen hossz vagy élő adás).")
+        self.trim_off_label.setText(tr("A teljes videó letöltődik. Kapcsold be, ha csak egy szakaszra van szükséged.")
+                                    if can_trim else tr("Ennél a tartalomnál a vágás nem érhető el (ismeretlen hossz vagy élő adás)."))
         self.range.set_duration(info.duration or 0, [c.start for c in info.chapters])
         self.start_edit.set_value(0)
         self.end_edit.set_value(info.duration)
-        self.chapter_box.set_items([("", "Fejezet kiválasztása…")] + [
+        self.chapter_box.set_items([("", tr("Fejezet kiválasztása…"))] + [
             (str(i), f"{fmt_time(c.start)}  {c.title}") for i, c in enumerate(info.chapters)], keep=False)
         self.chapter_box.setVisible(bool(info.chapters))
         self.load_list_button.setVisible(info.playlist_hint)
-        self._set_status("ok", f"Elemzés kész: {info.title}")
+        self._set_status("ok", tr("Elemzés kész: {title}").format(title=info.title))
         self._show_page("video")
         self.scroll.verticalScrollBar().setValue(0)
         self._options_changed()
@@ -852,12 +853,12 @@ class MainWindow(QMainWindow):
         available = [e for e in playlist.entries if e.available]
         missing = len(playlist.entries) - len(available)
         self.pl_title.setText(playlist.title)
-        meta = [playlist.uploader, f"{len(playlist.entries)} videó"]
+        meta = [playlist.uploader, tr("{n} videó").format(n=len(playlist.entries))]
         total = sum(e.duration or 0 for e in available)
         if total:
-            meta.append("összesen " + fmt_duration(total))
+            meta.append(tr("összesen {duration}").format(duration=fmt_duration(total)))
         if missing:
-            meta.append(f"{missing} nem elérhető (privát/törölt)")
+            meta.append(tr("{n} nem elérhető (privát/törölt)").format(n=missing))
         self.pl_meta.setText("  ·  ".join(m for m in meta if m))
         items = []
         for e in available:
@@ -868,13 +869,13 @@ class MainWindow(QMainWindow):
         self.pl_list.select_visible()
         self.pl_subs.setChecked(False)
         self.mode.set_option_enabled("subtitles", True, "")
-        self.quality.set_items([("best", "Legjobb elérhető")] + [
-            (str(h), f"Legfeljebb {h}p") for h in (2160, 1440, 1080, 720, 480, 360)], keep=False)
+        self.quality.set_items([("best", tr("Legjobb elérhető"))] + [
+            (str(h), tr("Legfeljebb {height}p").format(height=h)) for h in (2160, 1440, 1080, 720, 480, 360)], keep=False)
         if self.settings.quality != "best":
             self.quality.set_value(self.settings.quality)
         self.container.set_option_enabled("webm", True)
         self.load_list_button.hide()
-        self._set_status("ok", f"Lejátszási lista: {len(available)} letölthető videó")
+        self._set_status("ok", tr("Lejátszási lista: {n} letölthető videó").format(n=len(available)))
         self._show_page("playlist")
         self.scroll.verticalScrollBar().setValue(0)
         self._options_changed()
@@ -911,15 +912,15 @@ class MainWindow(QMainWindow):
                 enabled = enabled and any(f["vcodec"].lower().startswith(("vp9", "vp09", "av01", "vp8"))
                                           for f in self.info.formats)
             self.container.set_option_enabled(value, enabled,
-                                              "Több hangsáv egy fájlban csak MKV-ban lehetséges." if multi_audio else "")
+                                              tr("Több hangsáv egy fájlban csak MKV-ban lehetséges.") if multi_audio else "")
         if multi_audio and self.container.value() != "mkv":
             self.container.set_value("mkv")
-        hint = VIDEO_FORMAT_HINTS.get(self.container.value(), "")
+        hint = tr(VIDEO_FORMAT_HINTS.get(self.container.value(), ""))
         if multi_audio:
-            hint = "Több kijelölt hangsáv → MKV formátum (minden sáv nyelvi címkével kerül a fájlba)."
+            hint = tr("Több kijelölt hangsáv → MKV formátum (minden sáv nyelvi címkével kerül a fájlba).")
         self.container_hint.setText(hint)
         fmt = self.audio_format.value()
-        self.audio_hint.setText(AUDIO_FORMAT_HINTS.get(fmt, ""))
+        self.audio_hint.setText(tr(AUDIO_FORMAT_HINTS.get(fmt, "")))
         lossy = fmt in ("mp3", "m4a", "aac", "opus")
         self.audio_quality.setVisible(mode == "audio" and lossy)
         self.audio_quality_label.setVisible(mode == "audio" and lossy)
@@ -927,11 +928,11 @@ class MainWindow(QMainWindow):
                                         not (mode == "video" and self.container.value() == "webm"))
         if self.info is not None:
             if mode == "audio" and selected_audio > 1:
-                self.audio_note.setText("A kijelölt hangsávok külön fájlokba kerülnek.")
+                self.audio_note.setText(tr("A kijelölt hangsávok külön fájlokba kerülnek."))
             elif mode == "video" and not selected_audio:
-                self.audio_note.setText("Nincs kijelölés: az eredeti (alapértelmezett) hangsáv kerül a videóba.")
+                self.audio_note.setText(tr("Nincs kijelölés: az eredeti (alapértelmezett) hangsáv kerül a videóba."))
             elif mode == "audio" and not selected_audio:
-                self.audio_note.setText("Nincs kijelölés: az eredeti (alapértelmezett) hangsáv töltődik le.")
+                self.audio_note.setText(tr("Nincs kijelölés: az eredeti (alapértelmezett) hangsáv töltődik le."))
             else:
                 self.audio_note.setText("")
             self.audio_note.setVisible(bool(self.audio_note.text()) and len(self.info.audio_tracks) > 1)
@@ -950,24 +951,24 @@ class MainWindow(QMainWindow):
                 if opts.mode == "subtitles":
                     parts.append(f"{len(opts.subtitles)} felirat")
                 else:
-                    parts.append(f"Becsült méret: ~{fmt_size(size)}" if size else "Méret: ismeretlen")
+                    parts.append(tr("Becsült méret: ~{size}").format(size=fmt_size(size)) if size else tr("Méret: ismeretlen"))
                     if opts.subtitles:
-                        parts.append(f"+ {len(opts.subtitles)} felirat")
+                        parts.append("+ " + tr("{n} felirat").format(n=len(opts.subtitles)))
                 if opts.is_clip:
                     span = (opts.end if opts.end is not None else self.info.duration or 0) - (opts.start or 0)
-                    parts.append(f"részlet: {fmt_duration(span)}")
+                    parts.append(tr("részlet: {duration}").format(duration=fmt_duration(span)))
                 text = "  ·  ".join(parts)
             except ValueError as exc:
                 text = str(exc)
-            self.download_button.setText("Letöltés most")
-            self.queue_button.setText("Hozzáadás a sorhoz")
+            self.download_button.setText(tr("Letöltés most"))
+            self.queue_button.setText(tr("Hozzáadás a sorhoz"))
             self.download_button.setEnabled(True)
         elif self.playlist is not None:
             count = len(self.pl_list.checked_keys())
             total = sum(self._entry(k).duration or 0 for k in self.pl_list.checked_keys() if self._entry(k))
-            text = f"{count} videó kijelölve" + (f" · összesen {fmt_duration(total)}" if total else "")
-            self.download_button.setText(f"{count} videó letöltése" if count else "Letöltés most")
-            self.queue_button.setText("Hozzáadás a sorhoz")
+            text = tr("{n} videó kijelölve").format(n=count) + (" · " + tr("összesen {duration}").format(duration=fmt_duration(total)) if total else "")
+            self.download_button.setText(tr("{n} videó letöltése").format(n=count) if count else tr("Letöltés most"))
+            self.queue_button.setText(tr("Hozzáadás a sorhoz"))
             self.download_button.setEnabled(count > 0)
             self.queue_button.setEnabled(count > 0)
         self.summary_label.setText(text)
@@ -984,7 +985,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(0, self._update_dest_label)
 
     def _choose_dest(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Mentési mappa kiválasztása", self.settings.destination)
+        folder = QFileDialog.getExistingDirectory(self, tr("Mentési mappa kiválasztása"), self.settings.destination)
         if folder:
             self.settings.destination = folder
             self.settings.save()
@@ -1004,7 +1005,7 @@ class MainWindow(QMainWindow):
         if keys:
             self.sub_list.set_checked(keys)
         else:
-            self._set_status("info", "A preferált nyelveken nincs felirat. A nyelveket a Beállításokban adhatod meg.")
+            self._set_status("info", tr("A preferált nyelveken nincs felirat. A nyelveket a Beállításokban adhatod meg."))
 
     # ------------------------------------------------------------------ #
     # Vágás
@@ -1028,7 +1029,7 @@ class MainWindow(QMainWindow):
         end = self.end_edit.value()
         end = self.info.duration if end is None else min(end, self.info.duration)
         if end - start < 0.5:
-            self.trim_hint.setText("A végpontnak legalább fél másodperccel a kezdőpont után kell lennie.")
+            self.trim_hint.setText(tr("A végpontnak legalább fél másodperccel a kezdőpont után kell lennie."))
             return
         self.range.set_range(start, end)
         self.start_edit.set_value(start)
@@ -1060,19 +1061,19 @@ class MainWindow(QMainWindow):
             return
         start, end = self._clip_bounds()
         span = (end if end is not None else self.info.duration) - (start or 0)
-        self.clip_length.setText("Hossz: " + fmt_duration(span))
+        self.clip_length.setText(tr("Hossz: ") + fmt_duration(span))
         if start is None and end is None:
-            self.trim_hint.setText("A kijelölés a teljes videót lefedi – húzd a végpontokat, vagy írd be az időket.")
+            self.trim_hint.setText(tr("A kijelölés a teljes videót lefedi – húzd a végpontokat, vagy írd be az időket."))
         elif self.cut_method.value() == "full":
-            self.trim_hint.setText("A teljes videó letöltődik, majd a program helyben vágja ki a részletet. "
-                                   "Lassabb, de minden oldalon működik.")
+            self.trim_hint.setText(tr("A teljes videó letöltődik, majd a program helyben vágja ki a részletet. "
+                                   "Lassabb, de minden oldalon működik."))
         elif self.accurate.isChecked():
-            self.trim_hint.setText("Csak a kijelölt szakasz töltődik le; a pontos vágás miatt a részletet "
-                                   "újrakódolja (hosszabb ideig tart, a minőség minimálisan változhat).")
+            self.trim_hint.setText(tr("Csak a kijelölt szakasz töltődik le; a pontos vágás miatt a részletet "
+                                   "újrakódolja (hosszabb ideig tart, a minőség minimálisan változhat)."))
         else:
-            self.trim_hint.setText("Csak a kijelölt szakasz töltődik le, újrakódolás nélkül. A kép a legközelebbi "
+            self.trim_hint.setText(tr("Csak a kijelölt szakasz töltődik le, újrakódolás nélkül. A kép a legközelebbi "
                                    "kulcskockánál kezdődhet (néhány tized másodperc eltérés); a feliratokat a "
-                                   "program ehhez igazítja.")
+                                   "program ehhez igazítja."))
 
     # ------------------------------------------------------------------ #
     # Előnézet
@@ -1084,7 +1085,7 @@ class MainWindow(QMainWindow):
             try:
                 from .player import PreviewPlayer
             except Exception as exc:  # noqa: BLE001 - a lejátszó opcionális
-                log(f"Az előnézet nem elérhető: {exc}")
+                log(tr("Az előnézet nem elérhető: {error}").format(error=exc))
                 self._open_in_browser()
                 return
             self.player = PreviewPlayer()
@@ -1098,7 +1099,7 @@ class MainWindow(QMainWindow):
         self.media_stack.setCurrentWidget(self.player)
         start = self._clip_bounds()[0] or 0.0
         self.player.load(self.info.preview_url, start)
-        log("Előnézet indítása (alacsony felbontású változat).")
+        log(tr("Előnézet indítása (alacsony felbontású változat)."))
 
     def _stop_preview(self) -> None:
         if self.player is not None:
@@ -1108,11 +1109,11 @@ class MainWindow(QMainWindow):
         self.range.set_position(None)
 
     def _preview_failed(self, message: str) -> None:
-        log("Előnézeti hiba: " + message)
+        log(tr("Előnézeti hiba: ") + message)
         self._stop_preview()
-        self.banner.show_message("warning", "Az előnézet nem játszható le",
-                                 "A videó a böngészőben megtekinthető; a letöltést ez nem befolyásolja.",
-                                 [("Megnyitás böngészőben", self._open_in_browser)])
+        self.banner.show_message("warning", tr("Az előnézet nem játszható le"),
+                                 tr("A videó a böngészőben megtekinthető; a letöltést ez nem befolyásolja."),
+                                 [(tr("Megnyitás böngészőben"), self._open_in_browser)])
 
     def _mark_in(self, seconds: float) -> None:
         self.trim_switch.setChecked(True)
@@ -1221,7 +1222,7 @@ class MainWindow(QMainWindow):
         langs = [p.strip() for p in re.split(r"[,; ]+", self.pl_sub_langs.text()) if p.strip()]
         want_subs = self.pl_subs.isChecked() or self.mode.value() == "subtitles"
         if want_subs and not langs:
-            raise ValueError("Add meg a letöltendő feliratok nyelvét (pl. hu, en).")
+            raise ValueError(tr("Add meg a letöltendő feliratok nyelvét (pl. hu, en)."))
         dest = Path(s.destination)
         if self.pl_subfolder.isChecked():
             dest = dest / safe_component(self.playlist.title)
@@ -1254,20 +1255,20 @@ class MainWindow(QMainWindow):
                 opts = self._single_options()
                 self.manager.add(opts, self.info.title, immediate=now)
                 self._remember(opts)
-                where = "elindult" if now else "a sorba került"
-                self._set_status("ok", f"A letöltés {where}: {self.info.title}")
+                message = tr("A letöltés elindult: {title}") if now else tr("A letöltés a sorba került: {title}")
+                self._set_status("ok", message.format(title=self.info.title))
             elif self.playlist is not None:
                 jobs = self._playlist_options()
                 if not jobs:
-                    raise ValueError("Jelölj ki legalább egy videót a listából.")
+                    raise ValueError(tr("Jelölj ki legalább egy videót a listából."))
                 if now and self.manager.paused:
                     self.queue.pause.setChecked(False)
                 for opts, title in jobs:
                     self.manager.add(opts, title)
                 self._remember(jobs[0][0])
-                self._set_status("ok", f"{len(jobs)} videó a letöltési sorba került.")
+                self._set_status("ok", tr("{n} videó a letöltési sorba került.").format(n=len(jobs)))
         except ValueError as exc:
-            self.banner.show_message("warning", "Ellenőrizd a beállításokat", str(exc))
+            self.banner.show_message("warning", tr("Ellenőrizd a beállításokat"), str(exc))
             return
         self.banner.hide()
 
@@ -1312,7 +1313,7 @@ class MainWindow(QMainWindow):
             self.manager.retry(job)
         elif action == "remove":
             if job.status == "running" and QMessageBox.question(
-                    self, "Letöltés", "Megszakítod a folyamatban lévő letöltést?") != QMessageBox.StandardButton.Yes:
+                    self, tr("Letöltés"), tr("Megszakítod a folyamatban lévő letöltést?")) != QMessageBox.StandardButton.Yes:
                 return
             self.manager.remove(job)
         elif action == "open":
@@ -1320,7 +1321,7 @@ class MainWindow(QMainWindow):
             if target:
                 open_path(target)
             else:
-                QMessageBox.information(self, "Megnyitás", "A fájl már nem található (áthelyezték vagy törölték).")
+                QMessageBox.information(self, tr("Megnyitás"), tr("A fájl már nem található (áthelyezték vagy törölték)."))
         elif action == "folder":
             target = next((f for f in job.files if f.exists()), None)
             if target:
@@ -1330,7 +1331,7 @@ class MainWindow(QMainWindow):
                 if folder.is_dir():
                     open_path(folder)
         elif action == "details":
-            friendly = job.error or FriendlyError("Figyelmeztetések", "")
+            friendly = job.error or FriendlyError(tr("Figyelmeztetések"), "")
             DetailsDialog(friendly.title, friendly.message, job.details, job.warnings, self,
                           retry=(lambda: self.manager.retry(job)) if job.status == "error" else None).exec()
         elif action == "copy":
@@ -1357,6 +1358,13 @@ class MainWindow(QMainWindow):
             self.pl_sub_langs.setText(", ".join(self.settings.preferred_sub_langs))
             self.pl_audio_lang.set_value(self.settings.preferred_audio_lang)
             self._update_summary()
+            if getattr(dialog, "language_changed", False):
+                answer = QMessageBox.question(
+                    self, "Nyelv / Language",
+                    tr("A nyelv a program újraindítása után változik. Újraindítod most?"))
+                if answer == QMessageBox.StandardButton.Yes:
+                    self._restart_after_close = True
+                    self.close()
 
     def _show_tools(self) -> None:
         ToolsDialog(self.settings, self._can_update, self).exec()
@@ -1397,8 +1405,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: N802
         if self.manager.running():
-            answer = QMessageBox.question(self, "Kilépés", "Letöltés van folyamatban. Megszakítod és kilépsz?")
+            answer = QMessageBox.question(self, tr("Kilépés"), tr("Letöltés van folyamatban. Megszakítod és kilépsz?"))
             if answer != QMessageBox.StandardButton.Yes:
+                self._restart_after_close = False
                 event.ignore()
                 return
         if self._cancel is not None:
@@ -1410,11 +1419,14 @@ class MainWindow(QMainWindow):
         self.settings.save()
         self.manager.shutdown()
         event.accept()
+        if getattr(self, "_restart_after_close", False):
+            from .app import restart
+            restart()
 
 
 def _date(value: str) -> str:
     try:
-        return datetime.strptime(value, "%Y%m%d").strftime("%Y. %m. %d.")
+        return datetime.strptime(value, "%Y%m%d").strftime(tr("%Y. %m. %d."))
     except (ValueError, TypeError):
         return ""
 
@@ -1423,10 +1435,13 @@ def _views(count: int | None) -> str:
     if not count:
         return ""
     if count >= 1_000_000:
-        return f"{count / 1_000_000:.1f} M megtekintés".replace(".", ",")
+        number = f"{count / 1_000_000:.1f}"
+        if current_language() != "en":
+            number = number.replace(".", ",")
+        return tr("{n} M megtekintés").format(n=number)
     if count >= 1000:
-        return f"{count / 1000:.0f} E megtekintés"
-    return f"{count} megtekintés"
+        return tr("{n} E megtekintés").format(n=f"{count / 1000:.0f}")
+    return tr("{n} megtekintés").format(n=count)
 
 
 def _safe_image_url(url: str) -> bool:

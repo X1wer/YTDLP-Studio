@@ -14,6 +14,7 @@ from PySide6.QtGui import QAction, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QListView, QMenu, QStyle,
                                QStyledItemDelegate, QToolTip, QVBoxLayout, QWidget)
 
+from ..i18n import N_, tr
 from . import icons, theme
 from .logbus import log
 from .widgets import Banner, Card, button, label
@@ -21,8 +22,8 @@ from ..core import DownloadOptions, fmt_duration, fmt_size
 from ..engine import Cancelled, DownloadResult, DownloadTask, OperationError, Progress, cleanup_workdir
 from ..errors import FriendlyError, explain
 
-STATUS_TEXT = {"queued": "Várakozik", "running": "Folyamatban", "done": "Kész",
-               "error": "Sikertelen", "cancelled": "Megszakítva", "paused": "Szüneteltetve"}
+STATUS_TEXT = {"queued": N_("Várakozik"), "running": N_("Folyamatban"), "done": N_("Kész"),
+               "error": N_("Sikertelen"), "cancelled": N_("Megszakítva"), "paused": N_("Szüneteltetve")}
 
 
 @dataclass
@@ -49,40 +50,40 @@ class Job:
     def summary(self) -> str:
         o = self.options
         if o.mode == "audio":
-            text = {"original": "Eredeti hang"}.get(o.audio_format, o.audio_format.upper())
+            text = {"original": tr("Eredeti hang")}.get(o.audio_format, o.audio_format.upper())
         elif o.mode == "subtitles":
-            text = "Felirat (" + o.subtitle_format.upper() + ")"
+            text = tr("Felirat ({format})").format(format=o.subtitle_format.upper())
         else:
             text = o.effective_container.upper()
-            text += " · " + ("legjobb minőség" if o.quality == "best" else f"max. {o.quality}p")
+            text += " · " + (tr("legjobb minőség") if o.quality == "best" else f"max. {o.quality}p")
         if o.is_clip:
-            text += " · részlet"
+            text += tr(" · részlet")
         return text
 
     def status_line(self) -> str:
         p = self.progress
         if self.status == "queued":
-            return "Várakozik · " + (self.note or self.summary)
+            return tr("Várakozik · ") + (self.note or self.summary)
         if self.status == "running":
-            parts = [p.text or "Folyamatban…"]
+            parts = [p.text or tr("Folyamatban…")]
             if p.percent is not None and p.stage == "downloading":
                 parts.append(f"{p.percent:.0f}%")
             if p.speed:
                 parts.append(fmt_size(p.speed) + "/s")
             if p.eta and p.stage == "downloading":
-                parts.append(fmt_duration(p.eta) + " van hátra")
+                parts.append(fmt_duration(p.eta) + tr(" van hátra"))
             return " · ".join(parts)
         if self.status == "done":
             size = sum(f.stat().st_size for f in self.files if f.exists())
-            text = "Kész · " + (fmt_size(size) if size else self.summary)
+            text = tr("Kész · ") + (fmt_size(size) if size else self.summary)
             if self.warnings:
-                text += " · figyelmeztetés"
+                text += tr(" · figyelmeztetés")
             return text
         if self.status == "error":
-            return "Sikertelen: " + (self.error.title if self.error else "ismeretlen hiba")
+            return tr("Sikertelen: ") + (self.error.title if self.error else tr("ismeretlen hiba"))
         if self.status == "cancelled":
-            return "Megszakítva"
-        return STATUS_TEXT.get(self.status, self.status)
+            return tr("Megszakítva")
+        return tr(STATUS_TEXT.get(self.status, self.status))
 
 
 COOLDOWN_SECONDS = 15 * 60
@@ -136,7 +137,7 @@ class DownloadManager(QObject):
         else:
             self.jobs.append(job)
         self.jobAdded.emit(job)
-        log(f"Sorba állítva: {job.title} ({job.summary})")
+        log(tr("Sorba állítva: {title} ({summary})").format(title=job.title, summary=job.summary))
         self.schedule()
         return job
 
@@ -155,8 +156,8 @@ class DownloadManager(QObject):
         self.cooldown_reason = reason
         self.cooldown_until = max(self.cooldown_until, time.time() + seconds)
         self._cooldown_timer.start(int((self.cooldown_until - time.time()) * 1000) + 500)
-        log(f"A szolgáltató korlátozza a kéréseket: a sor {seconds / 60:.0f} percig szünetel, "
-            "utána automatikusan folytatódik.")
+        log(tr("A szolgáltató korlátozza a kéréseket: a sor {minutes} percig szünetel, "
+               "utána automatikusan folytatódik.").format(minutes=f"{seconds / 60:.0f}"))
         self.cooldownChanged.emit()
 
     def resume_now(self) -> None:
@@ -164,7 +165,7 @@ class DownloadManager(QObject):
         self.cooldown_until = 0.0
         self._cooldown_timer.stop()
         if was:
-            log("A letöltési sor folytatódik.")
+            log(tr("A letöltési sor folytatódik."))
         self.cooldownChanged.emit()
         self.schedule()
 
@@ -181,7 +182,7 @@ class DownloadManager(QObject):
         job.note = ""
         job.started = time.time()
         job.error, job.details, job.warnings, job.files = None, "", [], []
-        job.progress = Progress(stage="starting", text="Indítás…")
+        job.progress = Progress(stage="starting", text=tr("Indítás…"))
         task = DownloadTask(job.options, job.key,
                             on_progress=lambda p, j=job: self._progress.emit(j, p),
                             on_log=log)
@@ -216,17 +217,17 @@ class DownloadManager(QObject):
             job.warnings = result.warnings
             job.details = "\n".join(result.details)
             job.status = "done"
-            job.progress = Progress(stage="done", text="Kész", percent=100)
-            log(f"Kész: {job.title} → {result.main_file}")
+            job.progress = Progress(stage="done", text=tr("Kész"), percent=100)
+            log(tr("Kész: {title} → {file}").format(title=job.title, file=result.main_file))
         elif status == "cancelled":
             job.status = "cancelled"
-            log(f"Megszakítva: {job.title}")
+            log(tr("Megszakítva: {title}").format(title=job.title))
         else:
             error: OperationError = payload
             job.status = "error"
             job.error = error.friendly
             job.details = error.details or str(error)
-            log(f"HIBA ({job.title}): {error.friendly.title} – {error.friendly.message}")
+            log(tr("HIBA ({title}): {error} – {message}").format(title=job.title, error=error.friendly.title, message=error.friendly.message))
             if error.details:
                 log(error.details)
             if error.friendly.throttled:
@@ -234,7 +235,7 @@ class DownloadManager(QObject):
                 if job.auto_retries < MAX_AUTO_RETRIES and job in self.jobs:
                     job.auto_retries += 1
                     job.status = "queued"
-                    job.note = "a YouTube-korlátozás feloldása után automatikusan újrapróbálja"
+                    job.note = tr("a YouTube-korlátozás feloldása után automatikusan újrapróbálja")
                     job.progress = Progress()
         if job not in self.jobs:
             self._cleanup_later(job)
@@ -244,7 +245,7 @@ class DownloadManager(QObject):
 
     def cancel(self, job: Job) -> None:
         if job.status == "running" and job.task is not None:
-            job.progress = Progress(stage="finishing", text="Megszakítás…")
+            job.progress = Progress(stage="finishing", text=tr("Megszakítás…"))
             self.jobChanged.emit(job)
             job.task.cancel()
         elif job.status == "queued":
@@ -338,17 +339,17 @@ def job_actions(job: "Job") -> list[tuple[str, str, str]]:
     """A kártya jobb oldali ikongombjai az állapottól függően."""
     expandable = job_expandable(job)
     expand = [("expand", "chevron-up" if job.expanded else "chevron-down",
-               "Részletek elrejtése" if job.expanded else "Részletek megjelenítése")] if expandable else []
+               tr("Részletek elrejtése") if job.expanded else tr("Részletek megjelenítése"))] if expandable else []
     if job.status == "queued":
-        return expand + [("remove", "close", "Eltávolítás a sorból")]
+        return expand + [("remove", "close", tr("Eltávolítás a sorból"))]
     if job.status == "running":
-        return [("cancel", "stop", "Megszakítás")]
+        return [("cancel", "stop", tr("Megszakítás"))]
     if job.status == "done":
-        return expand + [("folder", "folder-open", "Mappa megnyitása"), ("open", "play", "Megnyitás")]
+        return expand + [("folder", "folder-open", tr("Mappa megnyitása")), ("open", "play", tr("Megnyitás"))]
     if job.status == "error":
-        return expand + [("remove", "close", "Eltávolítás"), ("retry", "retry", "Újrapróbálás")]
+        return expand + [("remove", "close", tr("Eltávolítás")), ("retry", "retry", tr("Újrapróbálás"))]
     if job.status == "cancelled":
-        return [("remove", "close", "Eltávolítás"), ("retry", "retry", "Újrapróbálás")]
+        return [("remove", "close", tr("Eltávolítás")), ("retry", "retry", tr("Újrapróbálás"))]
     return []
 
 
@@ -372,7 +373,7 @@ class JobDelegate(QStyledItemDelegate):
     actionTriggered = Signal(str, object)
     HEIGHT = 86
     PAD = 10
-    LINK = "Technikai részletek megnyitása…"
+    LINK = N_("Technikai részletek megnyitása…")
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -404,7 +405,7 @@ class JobDelegate(QStyledItemDelegate):
                                    int(Qt.TextFlag.TextWordWrap), job_detail_text(job))
         top = card.top() + self.HEIGHT - 26
         text = QRect(left + self.PAD, top + self.PAD, width - 2 * self.PAD, measured.height())
-        link = QRect(text.left(), text.bottom() + 6, fm.horizontalAdvance(self.LINK) + 4, fm.height() + 2)
+        link = QRect(text.left(), text.bottom() + 6, fm.horizontalAdvance(tr(self.LINK)) + 4, fm.height() + 2)
         box = QRect(left, top, width, link.bottom() + self.PAD - top)
         return box, text, link
 
@@ -484,7 +485,7 @@ class JobDelegate(QStyledItemDelegate):
         status_rect = self._status_rect(option, rect, job)
         status = job.status_line()
         if job_expandable(job) and not job.expanded:
-            status += "  ·  részletek ▾"
+            status += tr("  ·  részletek ▾")
         painter.drawText(status_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                          sfm.elidedText(status, Qt.TextElideMode.ElideRight, status_rect.width()))
         # haladásjelző
@@ -523,7 +524,7 @@ class JobDelegate(QStyledItemDelegate):
             link_font.setUnderline(self._hover_action == (index.row(), "details"))
             painter.setFont(link_font)
             painter.setPen(theme.qc("accent"))
-            painter.drawText(link, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.LINK)
+            painter.drawText(link, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, tr(self.LINK))
         # gombok
         for action, icon_name, _tip, r in buttons:
             hot = self._hover_action == (index.row(), action)
@@ -603,7 +604,7 @@ class JobDelegate(QStyledItemDelegate):
                     QToolTip.showText(event.globalPos(), tip, view)
                     return True
             if job_expandable(job) and not job.expanded:
-                QToolTip.showText(event.globalPos(), "Kattints az állapotsorra a részletekért.", view)
+                QToolTip.showText(event.globalPos(), tr("Kattints az állapotsorra a részletekért."), view)
             else:
                 QToolTip.hideText()
             return True
@@ -616,11 +617,11 @@ class QueuePanel(Card):
     actionRequested = Signal(str, object)
 
     def __init__(self, manager: DownloadManager, parent=None):
-        super().__init__("Letöltések", "download", parent, margins=14)
+        super().__init__(tr("Letöltések"), "download", parent, margins=14)
         self.manager = manager
         self.summary = label("", "caption")
         self.header_right.addWidget(self.summary)
-        self.pause = button("", "ghost", "pause", "muted", "A sor szüneteltetése (a futó letöltés folytatódik)")
+        self.pause = button("", "ghost", "pause", "muted", tr("A sor szüneteltetése (a futó letöltés folytatódik)"))
         self.pause.setCheckable(True)
         self.pause.setFixedSize(32, 32)
         self.pause.toggled.connect(self._toggle_pause)
@@ -649,10 +650,10 @@ class QueuePanel(Card):
         self.empty.setObjectName("transparent")
         empty_layout = QVBoxLayout(self.empty)
         empty_layout.addStretch(1)
-        title = label("Még nincs letöltés", "h2")
+        title = label(tr("Még nincs letöltés"), "h2")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint = label("Elemezz egy videót, majd válaszd a „Letöltés most” vagy a „Hozzáadás a sorhoz” "
-                     "gombot. A letöltések itt jelennek meg.", "muted", wrap=True)
+        hint = label(tr("Elemezz egy videót, majd válaszd a „Letöltés most” vagy a „Hozzáadás a sorhoz” "
+                     "gombot. A letöltések itt jelennek meg."), "muted", wrap=True)
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addWidget(title)
         empty_layout.addWidget(hint)
@@ -660,9 +661,9 @@ class QueuePanel(Card):
         self.body.addWidget(self.empty, 1)
         footer = QHBoxLayout()
         footer.setSpacing(6)
-        self.clear_button = button("Befejezettek törlése", "ghost", "trash", "muted")
+        self.clear_button = button(tr("Befejezettek törlése"), "ghost", "trash", "muted")
         self.clear_button.clicked.connect(manager.clear_finished)
-        self.retry_button = button("Sikertelenek újra", "ghost", "retry", "muted")
+        self.retry_button = button(tr("Sikertelenek újra"), "ghost", "retry", "muted")
         self.retry_button.clicked.connect(manager.retry_failed)
         footer.addWidget(self.clear_button)
         footer.addWidget(self.retry_button)
@@ -688,13 +689,13 @@ class QueuePanel(Card):
             self._update()
             return
         minutes, seconds = divmod(int(left), 60)
-        text = (f"A sor {minutes}:{seconds:02d} múlva magától folytatódik. Addig nem indul új "
-                "letöltés, hogy a korlátozás ne hosszabbodjon meg.")
+        text = tr("A sor {time} múlva magától folytatódik. Addig nem indul új letöltés, hogy a "
+                  "korlátozás ne hosszabbodjon meg.").format(time=f"{minutes}:{seconds:02d}")
         if not self.cooldown.isVisible():
-            self.cooldown.setToolTip("A YouTube rövid időn belül túl sok kérést kapott erről a hálózatról "
-                                     "(robotellenőrzés vagy „túl sok kérés”). Ez általában magától megszűnik.")
-            actions = [("Folytatás most", self.manager.resume_now)]
-            self.cooldown.show_message("warning", "A YouTube ideiglenesen korlátoz", text, actions)
+            self.cooldown.setToolTip(tr("A YouTube rövid időn belül túl sok kérést kapott erről a hálózatról "
+                                     "(robotellenőrzés vagy „túl sok kérés”). Ez általában magától megszűnik."))
+            actions = [(tr("Folytatás most"), self.manager.resume_now)]
+            self.cooldown.show_message("warning", tr("A YouTube ideiglenesen korlátoz"), text, actions)
         else:
             self.cooldown.message.setText(text)
         if not self._clock.isActive():
@@ -710,7 +711,7 @@ class QueuePanel(Card):
         self.manager.set_paused(paused)
         from .widgets import set_icon
         set_icon(self.pause, "play" if paused else "pause", "accent" if paused else "muted")
-        self.pause.setToolTip("A sor folytatása" if paused else "A sor szüneteltetése (a futó letöltés folytatódik)")
+        self.pause.setToolTip(tr("A sor folytatása") if paused else tr("A sor szüneteltetése (a futó letöltés folytatódik)"))
         self._update()
 
     def _update(self, *_):
@@ -720,17 +721,17 @@ class QueuePanel(Card):
         self.empty.setVisible(not has)
         parts = []
         if counts.get("running"):
-            parts.append(f"{counts['running']} fut")
+            parts.append(tr("{n} fut").format(n=counts["running"]))
         if counts.get("queued"):
-            parts.append(f"{counts['queued']} vár")
+            parts.append(tr("{n} vár").format(n=counts["queued"]))
         if counts.get("done"):
-            parts.append(f"{counts['done']} kész")
+            parts.append(tr("{n} kész").format(n=counts["done"]))
         if counts.get("error"):
-            parts.append(f"{counts['error']} hibás")
+            parts.append(tr("{n} hibás").format(n=counts["error"]))
         if self.manager.paused:
-            parts.append("szünetel")
+            parts.append(tr("szünetel"))
         elif self.manager.in_cooldown():
-            parts.append("várakozik")
+            parts.append(tr("várakozik"))
         self.summary.setText(" · ".join(parts))
         self.clear_button.setEnabled(any(counts.get(s) for s in ("done", "error", "cancelled")))
         self.retry_button.setEnabled(any(counts.get(s) for s in ("error", "cancelled")))
@@ -742,16 +743,16 @@ class QueuePanel(Card):
         job: Job = index.data(Qt.ItemDataRole.UserRole)
         menu = QMenu(self)
         entries = [
-            ("open", "Megnyitás", job.status == "done"),
-            ("folder", "Mappa megnyitása", True),
+            ("open", tr("Megnyitás"), job.status == "done"),
+            ("folder", tr("Mappa megnyitása"), True),
             (None, None, None),
-            ("cancel", "Megszakítás", job.status in ("running", "queued")),
-            ("retry", "Újrapróbálás", job.status in ("error", "cancelled")),
-            ("details", "Részletek…", job.status == "error" or bool(job.warnings)),
+            ("cancel", tr("Megszakítás"), job.status in ("running", "queued")),
+            ("retry", tr("Újrapróbálás"), job.status in ("error", "cancelled")),
+            ("details", tr("Részletek…"), job.status == "error" or bool(job.warnings)),
             (None, None, None),
-            ("copy", "Link másolása", True),
-            ("browser", "Megnyitás böngészőben", True),
-            ("remove", "Eltávolítás a listából", True),
+            ("copy", tr("Link másolása"), True),
+            ("browser", tr("Megnyitás böngészőben"), True),
+            ("remove", tr("Eltávolítás a listából"), True),
         ]
         for action, text, enabled in entries:
             if action is None:

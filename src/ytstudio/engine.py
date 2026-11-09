@@ -19,6 +19,7 @@ import sys
 import threading
 import time
 
+from .i18n import N_, tr
 from .core import (DownloadOptions, PlaylistInfo, Subtitle, Tools, VideoInfo, media_args,
                    metadata_args, subtitle_args, subtitle_plan, youtube_playlist_context)
 from .errors import FriendlyError, explain
@@ -57,9 +58,9 @@ def require(name: str) -> Path:
     path = find_exe(name)
     if path is None:
         raise OperationError(FriendlyError(
-            f"Hiányzik: {name}",
-            f"A program mappájából hiányzik a bin\\{name}.exe. Csomagold ki újra a teljes "
-            f"portable ZIP-et, vagy forrásból futtatva tedd a bin mappába.", False))
+            tr("Hiányzik: {name}").format(name=name),
+            tr("A program mappájából hiányzik a bin\\{name}.exe. Csomagold ki újra a teljes "
+               "portable ZIP-et, vagy forrásból futtatva tedd a bin mappába.").format(name=name), False))
     return path
 
 
@@ -174,7 +175,7 @@ class Process:
                 if timeout is not None and time.monotonic() - started > timeout:
                     self.kill()
                     raise OperationError(FriendlyError(
-                        "Időtúllépés", "A művelet túl sokáig tartott, ezért leállítottam.")) from None
+                        tr("Időtúllépés"), tr("A művelet túl sokáig tartott, ezért leállítottam."))) from None
 
     def kill(self) -> None:
         self._killed = True
@@ -259,7 +260,7 @@ def analyze(url: str, *, cancel: threading.Event | None = None, allow_playlist: 
             _depth: int = 0) -> VideoInfo | PlaylistInfo:
     cmd = tool_cmd("yt-dlp") + metadata_args(url, tools(), allow_playlist=allow_playlist,
                                     cookies_browser=cookies_browser)
-    on_log("Elemzés: " + url)
+    on_log(tr("Elemzés: ") + url)
     proc = Process(cmd, cwd=data_dir(), merge_stderr=False)
     try:
         out, err = proc.communicate(cancel, timeout=600)
@@ -276,11 +277,11 @@ def analyze(url: str, *, cancel: threading.Event | None = None, allow_playlist: 
         data = json.loads(out.decode("utf-8", errors="replace"))
     except json.JSONDecodeError as exc:
         raise OperationError(FriendlyError(
-            "Értelmezhetetlen válasz",
-            "A yt-dlp válasza nem értelmezhető. Frissítsd a yt-dlp-t az Eszközök menüben."),
+            tr("Értelmezhetetlen válasz"),
+            tr("A yt-dlp válasza nem értelmezhető. Frissítsd a yt-dlp-t az Eszközök menüben.")),
             errors.strip()) from exc
     if not isinstance(data, dict):
-        raise OperationError(FriendlyError("Értelmezhetetlen válasz", "Üres válasz érkezett."))
+        raise OperationError(FriendlyError(tr("Értelmezhetetlen válasz"), tr("Üres válasz érkezett.")))
     entries = data.get("entries")
     if data.get("_type") in ("playlist", "multi_video") or isinstance(entries, list):
         entries = [e for e in entries or [] if isinstance(e, dict)]
@@ -289,21 +290,21 @@ def analyze(url: str, *, cancel: threading.Event | None = None, allow_playlist: 
         elif (entries and allow_playlist and all(str(e.get("ie_key")) == "YoutubeTab" for e in entries)
               and str(entries[0].get("url") or "").startswith("https://") and _depth == 0):
             # Csatornalink: a fülek (Videók, Shorts, Élő) közül a Videók listáját nyitja meg.
-            on_log("Csatorna: a „Videók” fül betöltése.")
+            on_log(tr("Csatorna: a „Videók” fül betöltése."))
             return analyze(str(entries[0]["url"]), cancel=cancel, allow_playlist=True,
                            cookies_browser=cookies_browser, on_log=on_log, _depth=1)
         else:
             playlist = PlaylistInfo.from_json(data, url)
             if not playlist.entries:
-                raise OperationError(FriendlyError("Üres lista", "A lejátszási lista nem tartalmaz elérhető videót.", False))
+                raise OperationError(FriendlyError(tr("Üres lista"), tr("A lejátszási lista nem tartalmaz elérhető videót."), False))
             return playlist
     info = VideoInfo.from_json(data, url)
     has_video, has_list = youtube_playlist_context(url)
     info.playlist_hint = has_video and has_list
     if info.has_drm:
         raise OperationError(FriendlyError(
-            "DRM-védett tartalom",
-            "A tartalom másolásvédelemmel (DRM) rendelkezik, ezért a program nem tölti le.", False))
+            tr("DRM-védett tartalom"),
+            tr("A tartalom másolásvédelemmel (DRM) rendelkezik, ezért a program nem tölti le."), False))
     _store_info_json(info, data)
     return info
 
@@ -354,15 +355,15 @@ def _stale_source(details: str) -> bool:
 # --------------------------------------------------------------------------- #
 
 PP_LABELS = {
-    "Merger": "Sávok összefűzése", "ExtractAudio": "Hang átalakítása",
-    "VideoRemuxer": "Konténer átalakítása", "VideoConvertor": "Videó átkódolása",
-    "Metadata": "Metaadatok írása", "EmbedThumbnail": "Borítókép beágyazása",
-    "ThumbnailsConvertor": "Borítókép átalakítása", "SubtitlesConvertor": "Felirat átalakítása",
-    "MoveFiles": "Fájlok áthelyezése", "FixupM3u8": "Fájl javítása", "FixupM4a": "Fájl javítása",
-    "FixupStretched": "Fájl javítása", "FixupDuplicateMoov": "Fájl javítása",
-    "FixupTimestamp": "Fájl javítása", "FixupDuration": "Fájl javítása",
-    "ModifyChapters": "Fejezetek kezelése", "SplitChapters": "Fejezetek kezelése",
-    "FFmpegConcat": "Összefűzés",
+    "Merger": N_("Sávok összefűzése"), "ExtractAudio": N_("Hang átalakítása"),
+    "VideoRemuxer": N_("Konténer átalakítása"), "VideoConvertor": N_("Videó átkódolása"),
+    "Metadata": N_("Metaadatok írása"), "EmbedThumbnail": N_("Borítókép beágyazása"),
+    "ThumbnailsConvertor": N_("Borítókép átalakítása"), "SubtitlesConvertor": N_("Felirat átalakítása"),
+    "MoveFiles": N_("Fájlok áthelyezése"), "FixupM3u8": N_("Fájl javítása"), "FixupM4a": N_("Fájl javítása"),
+    "FixupStretched": N_("Fájl javítása"), "FixupDuplicateMoov": N_("Fájl javítása"),
+    "FixupTimestamp": N_("Fájl javítása"), "FixupDuration": N_("Fájl javítása"),
+    "ModifyChapters": N_("Fejezetek kezelése"), "SplitChapters": N_("Fejezetek kezelése"),
+    "FFmpegConcat": N_("Összefűzés"),
 }
 
 
@@ -378,10 +379,10 @@ class Progress:
 
 
 TRANSLATED_UNAVAILABLE = (
-    "A YouTube az automatikusan fordított feliratokat jelenleg csak a saját lejátszójában jeleníti meg, "
+    N_("A YouTube az automatikusan fordított feliratokat jelenleg csak a saját lejátszójában jeleníti meg, "
     "letöltésre nem adja ki. A válasza ugyan „túl sok kérés” (429), de ez várakozás után is ugyanígy "
     "jön, és a böngészőben sem látszik semmilyen ellenőrzés, ezért a programból nem oldható meg. "
-    "Az eredeti nyelvű és az automatikus (beszédfelismeréses) felirat letölthető.")
+    "Az eredeti nyelvű és az automatikus (beszédfelismeréses) felirat letölthető."))
 
 
 @dataclass
@@ -473,7 +474,7 @@ class DownloadTask:
         work.mkdir(parents=True, exist_ok=True)
         _hide(dest / TEMP_DIR_NAME)
         result = DownloadResult()
-        self._emit(stage="starting", text="Videóadatok lekérése…", percent=None)
+        self._emit(stage="starting", text=tr("Videóadatok lekérése…"), percent=None)
         media: list[Path] = []
         if opts.mode != "subtitles":
             try:
@@ -481,7 +482,7 @@ class DownloadTask:
             except OperationError as exc:
                 if not self.opts.info_json or not _stale_source(exc.details):
                     raise
-                self.on_log("A mentett elemzés letöltési linkjei már nem érvényesek, friss lekérés…")
+                self.on_log(tr("A mentett elemzés letöltési linkjei már nem érvényesek, friss lekérés…"))
                 self.opts = self.opts.with_changes(info_json="")
                 media = self._download_media(work)
             self._check()
@@ -493,47 +494,47 @@ class DownloadTask:
             if opts.mode == "subtitles" and not subs:
                 if result.translated_unavailable and not result.subtitles_rate_limited:
                     raise OperationError(FriendlyError(
-                        "A YouTube nem adja ki a fordított feliratot", TRANSLATED_UNAVAILABLE, False),
+                        tr("A YouTube nem adja ki a fordított feliratot"), tr(TRANSLATED_UNAVAILABLE), False),
                         "\n".join(result.details))
                 if result.subtitles_rate_limited:
                     raise OperationError(FriendlyError(
-                        "A YouTube nem engedte letölteni a feliratot (429)",
-                        "A YouTube „túl sok kérés” választ adott. Ez általában néhány perc–óra alatt "
-                        "magától megszűnik; a program addig vár, majd újrapróbálja.",
+                        tr("A YouTube nem engedte letölteni a feliratot (429)"),
+                        tr("A YouTube „túl sok kérés” választ adott. Ez általában néhány perc–óra alatt "
+                        "magától megszűnik; a program addig vár, majd újrapróbálja."),
                         kind="rate_limit"), "\n".join(result.details))
                 raise OperationError(FriendlyError(
-                    "Nem sikerült feliratot letölteni",
-                    "A kijelölt feliratok egyike sem volt letölthető. Lásd a naplót."),
+                    tr("Nem sikerült feliratot letölteni"),
+                    tr("A kijelölt feliratok egyike sem volt letölthető. Lásd a naplót.")),
                     "\n".join(result.warnings))
         self._check()
         if subs and opts.is_clip:
-            self._emit(stage="finishing", text="Feliratok időzítésének igazítása…", percent=None)
+            self._emit(stage="finishing", text=tr("Feliratok időzítésének igazítása…"), percent=None)
             offset = self._probe_offset(media[0]) if media and opts.mode == "video" else 0.0
             if offset:
-                self.on_log(f"A gyors vágás miatt a hang {offset:.3f} mp-cel később indul; a feliratok ehhez igazodnak.")
+                self.on_log(tr("A gyors vágás miatt a hang {seconds} mp-cel később indul; a feliratok ehhez igazodnak.").format(seconds=f"{offset:.3f}"))
             for path, _, _ in subs:
                 kept = trim_file(path, opts.start or 0.0, opts.end, offset)
-                self.on_log(f"Felirat igazítva ({kept} sor maradt): {path.name}")
+                self.on_log(tr("Felirat igazítva ({count} sor maradt): {name}").format(count=kept, name=path.name))
         if subs and opts.embed_subtitles and opts.mode == "video" and media:
-            self._emit(stage="finishing", text="Feliratok beágyazása…", percent=None)
+            self._emit(stage="finishing", text=tr("Feliratok beágyazása…"), percent=None)
             try:
                 for video in media:
                     self._mux_subtitles(video, subs)
                 for path, _, _ in subs:
                     path.unlink(missing_ok=True)
-                self.on_log("A feliratok a videófájlba kerültek.")
+                self.on_log(tr("A feliratok a videófájlba kerültek."))
             except Cancelled:
                 raise
             except Exception as exc:  # noqa: BLE001 - a videó ettől még használható
-                message = f"A feliratokat nem sikerült beágyazni, külön fájlként mentettem őket ({exc})."
+                message = tr("A feliratokat nem sikerült beágyazni, külön fájlként mentettem őket ({error}).").format(error=exc)
                 result.warnings.append(message)
-                result.details.append(f"Feliratbeágyazás: {exc!r}")
-                self.on_log("FIGYELEM: " + message)
+                result.details.append(tr("Feliratbeágyazás: {error}").format(error=repr(exc)))
+                self.on_log(tr("FIGYELEM: ") + message)
         self._check()
-        self._emit(stage="finishing", text="Fájlok áthelyezése…", percent=None)
+        self._emit(stage="finishing", text=tr("Fájlok áthelyezése…"), percent=None)
         result.files = self._finalize(work, dest, media, [p for p, _, _ in subs])
         cleanup_workdir(dest, self.key)
-        self._emit(stage="done", text="Kész", percent=100.0, speed=None, eta=None)
+        self._emit(stage="done", text=tr("Kész"), percent=100.0, speed=None, eta=None)
         return result
 
     def _spawn(self, cmd: list[str], cwd: Path) -> Process:
@@ -555,7 +556,7 @@ class DownloadTask:
     def _download_media(self, work: Path) -> list[Path]:
         opts = self.opts
         cmd = tool_cmd("yt-dlp") + media_args(opts, work, tools())
-        self.on_log("Letöltés indítása: " + (opts.title or opts.url))
+        self.on_log(tr("Letöltés indítása: ") + (opts.title or opts.url))
         proc = self._spawn(cmd, work)
         outputs: list[Path] = []
         errors: list[str] = []
@@ -583,13 +584,13 @@ class DownloadTask:
                 if line.startswith("__YTS_PP__"):
                     name, _, status = line[10:].partition("|")
                     if status == "started":
-                        label = PP_LABELS.get(name, "Utófeldolgozás")
+                        label = tr(PP_LABELS.get(name, N_("Utófeldolgozás")))
                         self._emit(stage="processing", text=label + "…", percent=None, speed=None, eta=None)
                     continue
                 if line.startswith("__YTS_OUT__"):
                     path = Path(line[11:].strip())
                     outputs.append(path)
-                    self.on_log("Elkészült: " + path.name)
+                    self.on_log(tr("Elkészült: ") + path.name)
                     continue
                 if clip_len and "time=" in line and line.lstrip().startswith(("frame=", "size=")):
                     self._on_ffmpeg_line(line, clip_len)
@@ -599,21 +600,21 @@ class DownloadTask:
                 if line.startswith("ERROR:"):
                     errors.append(line)
                 elif line.startswith(("[youtube]", "[info]", "[generic]")) and self.progress.stage == "starting":
-                    self._emit(text="Videóadatok lekérése…")
+                    self._emit(text=tr("Videóadatok lekérése…"))
                 self.on_log(line)
             code = proc.wait()
         finally:
             self._release(proc)
         self._check()
         if code != 0:
-            details = "\n".join(errors) or f"A yt-dlp hibakóddal ({code}) állt le."
+            details = "\n".join(errors) or tr("A yt-dlp hibakóddal ({code}) állt le.").format(code=code)
             raise OperationError(explain(details), details)
         outputs = [p for p in outputs if p.is_file()]
         if not outputs:
             outputs = self._scan_media(work)
         if not outputs:
-            raise OperationError(FriendlyError("Nem készült fájl",
-                                               "A yt-dlp nem hozott létre kimeneti fájlt. Lásd a naplót."))
+            raise OperationError(FriendlyError(tr("Nem készült fájl"),
+                                               tr("A yt-dlp nem hozott létre kimeneti fájlt. Lásd a naplót.")))
         return outputs
 
     def _on_requested(self, payload: str, streams: dict[str, list[float]]) -> None:
@@ -656,9 +657,9 @@ class DownloadTask:
             percent = None
         index = list(streams).index(fid) + 1
         count = len(streams)
-        label = "Letöltés"
+        label = tr("Letöltés folyamatban")
         if count > 1:
-            label += f" ({index}/{count}. sáv)"
+            label += " " + tr("({index}/{count}. sáv)").format(index=index, count=count)
         self._emit(stage="downloading", text=label, percent=percent, speed=_num(speed), eta=_num(eta),
                    downloaded=sum(v[0] for v in streams.values()),
                    total=sum(totals) if totals and all(totals) else None)
@@ -675,7 +676,7 @@ class DownloadTask:
         if size:
             downloaded = int(size.group(1)) * (1024 if size.group(2) in ("KiB", "kB") else 1024 * 1024)
         eta = (clip_len - seconds) / factor if factor else None
-        self._emit(stage="downloading", text="Szakasz letöltése", percent=min(100.0, 100 * seconds / clip_len),
+        self._emit(stage="downloading", text=tr("Szakasz letöltése"), percent=min(100.0, 100 * seconds / clip_len),
                    speed=None, eta=eta, downloaded=downloaded, total=None)
 
     def _progress_summary(self) -> str:
@@ -720,11 +721,11 @@ class DownloadTask:
         plan = subtitle_plan(opts)
         for step in plan:
             self._check()
-            self._emit(stage="subtitles", text="Feliratok letöltése…", percent=None, speed=None, eta=None)
+            self._emit(stage="subtitles", text=tr("Feliratok letöltése…"), percent=None, speed=None, eta=None)
             code, messages, new_files = self._subtitle_attempt(work, step, opts)
             joined = "\n".join(messages)
             if code != 0 and opts.info_json and "429" not in joined and _stale_source(joined):
-                self.on_log("A mentett elemzés felirat-linkjei lejártak, friss lekérés…")
+                self.on_log(tr("A mentett elemzés felirat-linkjei lejártak, friss lekérés…"))
                 opts = self.opts = self.opts.with_changes(info_json="")
                 code, messages, more = self._subtitle_attempt(work, step, opts)
                 new_files += more
@@ -740,22 +741,22 @@ class DownloadTask:
                 missing = []  # lejátszási listánál a preferált nyelvek opcionálisak
             if code != 0 or missing:
                 joined = "\n".join(messages)
-                names = ", ".join(missing) if missing else "egyes feliratok"
+                names = ", ".join(missing) if missing else tr("egyes feliratok")
                 translated = bool(missing) and all(
                     any(s.kind == "translated" and s.language == lang for s in opts.subtitles) for lang in missing)
                 if "429" in joined and translated:
                     # A YouTube a fordított feliratokat a saját lejátszóján kívül tartósan elutasítja;
                     # várakozással vagy a programból nem oldható meg, ezért nem korlátozásként kezeljük.
                     result.translated_unavailable = True
-                    detail = TRANSLATED_UNAVAILABLE
+                    detail = tr(TRANSLATED_UNAVAILABLE)
                 elif "429" in joined:
                     result.subtitles_rate_limited = True
-                    detail = "A YouTube nem engedte letölteni a feliratot (429 – túl sok kérés)."
+                    detail = tr("A YouTube nem engedte letölteni a feliratot (429 – túl sok kérés).")
                 else:
                     detail = explain(joined).message if messages else ""
-                message = f"Nem sikerült letölteni: {names}. {detail}".strip()
+                message = tr("Nem sikerült letölteni: {names}.").format(names=names) + (" " + detail if detail else "")
                 result.warnings.append(message)
-                result.details.append(joined or f"A yt-dlp kilépési kódja: {code}")
+                result.details.append(joined or tr("A yt-dlp kilépési kódja: {code}").format(code=code))
                 self.on_log("FIGYELEM: " + message)
         return found
 
@@ -791,7 +792,7 @@ class DownloadTask:
         ffmpeg = require("ffmpeg")
         ext = video.suffix.lower()
         if ext not in (".mp4", ".m4v", ".mkv", ".webm", ".mov"):
-            raise ValueError("ebben a formátumban nem támogatott a beágyazás")
+            raise ValueError(tr("ebben a formátumban nem támogatott a beágyazás"))
         existing = 0
         ffprobe = find_exe("ffprobe")
         if ffprobe:
@@ -838,7 +839,7 @@ class DownloadTask:
         ffmpeg = require("ffmpeg")
         start = opts.start or 0.0
         end = opts.end if opts.end is not None else opts.duration
-        self._emit(stage="processing", text="Vágás…" if not opts.accurate_cut else "Pontos vágás (újrakódolás)…",
+        self._emit(stage="processing", text=tr("Vágás…") if not opts.accurate_cut else tr("Pontos vágás (újrakódolás)…"),
                    percent=None, speed=None, eta=None)
         temp = src.with_name(src.stem + ".cut-tmp" + src.suffix)
         cmd = [str(ffmpeg), "-hide_banner", "-nostdin", "-y", "-ss", f"{start:.3f}", "-i", str(src)]
@@ -924,5 +925,5 @@ class DownloadTask:
                 shutil.move(str(member), str(target))
                 final.append(target)
             if n > 1:
-                self.on_log(f"Azonos nevű fájl már létezett, az új fájl neve: {new_base}")
+                self.on_log(tr("Azonos nevű fájl már létezett, az új fájl neve: {name}").format(name=new_base))
         return final

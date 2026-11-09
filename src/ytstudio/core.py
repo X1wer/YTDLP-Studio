@@ -10,7 +10,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 import re
 
-from .langs import base_code, is_valid_code, language_name, matches_preference
+from .i18n import N_, current as current_language, tr
+from .langs import base_code, is_valid_code, language_name, matches_preference, source_language
 
 # --------------------------------------------------------------------------- #
 # Általános segédfüggvények
@@ -24,13 +25,13 @@ def validate_url(url: str) -> str:
     url = (url or "").strip()
     value = urlparse(url)
     if value.scheme not in {"https", "http"} or not value.netloc:
-        raise ValueError("Adj meg egy érvényes, http:// vagy https:// kezdetű linket.")
+        raise ValueError(tr("Adj meg egy érvényes, http:// vagy https:// kezdetű linket."))
     if any(c in url for c in "\n\r\t\0 "):
-        raise ValueError("A link nem tartalmazhat szóközt vagy sortörést.")
+        raise ValueError(tr("A link nem tartalmazhat szóközt vagy sortörést."))
     if value.username or value.password:
-        raise ValueError("Felhasználónevet vagy jelszót tartalmazó link nem támogatott.")
+        raise ValueError(tr("Felhasználónevet vagy jelszót tartalmazó link nem támogatott."))
     if len(url) > 4096:
-        raise ValueError("A link túl hosszú.")
+        raise ValueError(tr("A link túl hosszú."))
     return url
 
 
@@ -63,15 +64,15 @@ def parse_time(value: str) -> float | None:
         return None
     parts = value.split(":")
     if not 1 <= len(parts) <= 3:
-        raise ValueError("Az idő formátuma: ÓÓ:PP:MM vagy PP:MM.")
+        raise ValueError(tr("Az idő formátuma: ÓÓ:PP:MM vagy PP:MM."))
     try:
         nums = [float(p) for p in parts]
     except ValueError as exc:
-        raise ValueError("Az időpont csak számokat és kettőspontot tartalmazhat.") from exc
+        raise ValueError(tr("Az időpont csak számokat és kettőspontot tartalmazhat.")) from exc
     if any(n < 0 or n != n or n > 1e7 for n in nums):
-        raise ValueError("Az időpont nem lehet negatív vagy érvénytelen.")
+        raise ValueError(tr("Az időpont nem lehet negatív vagy érvénytelen."))
     if len(nums) > 1 and any(n >= 60 for n in nums[1:]):
-        raise ValueError("A perc és a másodperc értéke 60-nál kisebb legyen.")
+        raise ValueError(tr("A perc és a másodperc értéke 60-nál kisebb legyen."))
     return sum(n * 60 ** i for i, n in enumerate(reversed(nums)))
 
 
@@ -92,7 +93,7 @@ def fmt_time(seconds: float | None, millis: bool = False) -> str:
 
 def fmt_duration(seconds: float | None) -> str:
     if not seconds:
-        return "ismeretlen hossz"
+        return tr("ismeretlen hossz")
     whole = int(round(seconds))
     h, rem = divmod(whole, 3600)
     m, s = divmod(rem, 60)
@@ -104,7 +105,10 @@ def fmt_size(num: float | None) -> str:
         return "–"
     for unit in ("B", "KB", "MB", "GB"):
         if num < 1024 or unit == "GB":
-            return f"{num:.0f} {unit}" if unit in ("B", "KB") else f"{num:.1f} {unit}".replace(".", ",")
+            if unit in ("B", "KB"):
+                return f"{num:.0f} {unit}"
+            text = f"{num:.1f} {unit}"
+            return text if current_language() == "en" else text.replace(".", ",")
         num /= 1024
     return "–"
 
@@ -114,7 +118,7 @@ def safe_component(name: str, limit: int = 120) -> str:
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name or "").strip().rstrip(". ")
     name = re.sub(r"\s+", " ", name)[:limit].rstrip(". ")
     if not name or name.upper().split(".")[0] in _WIN_RESERVED:
-        name = (name + "_") if name else "Lejátszási lista"
+        name = (name + "_") if name else tr("Lejátszási lista")
     return name
 
 
@@ -127,17 +131,17 @@ def _template_literal(text: str) -> str:
 # --------------------------------------------------------------------------- #
 
 AUDIO_KIND_LABELS = {
-    "original": "eredeti hangsáv",
-    "dubbed": "szinkron hangsáv",
-    "dubbed-auto": "AI-szinkron (a YouTube jelölése szerint)",
-    "descriptive": "narrált hangsáv (látássérülteknek)",
-    "default": "alapértelmezett hang",
+    "original": N_("eredeti hangsáv"),
+    "dubbed": N_("szinkron hangsáv"),
+    "dubbed-auto": N_("AI-szinkron (a YouTube jelölése szerint)"),
+    "descriptive": N_("narrált hangsáv (látássérülteknek)"),
+    "default": N_("alapértelmezett hang"),
 }
 
 SUB_KIND_LABELS = {
-    "manual": "eredeti felirat",
-    "auto": "automatikus felirat",
-    "translated": "automatikus fordítás",
+    "manual": N_("eredeti felirat"),
+    "auto": N_("automatikus felirat"),
+    "translated": N_("automatikus fordítás"),
 }
 
 
@@ -153,11 +157,11 @@ class AudioTrack:
 
     @property
     def name(self) -> str:
-        return language_name(self.language, "Alapértelmezett hang") if self.language else "Alapértelmezett hang"
+        return language_name(self.language, tr("Alapértelmezett hang")) if self.language else tr("Alapértelmezett hang")
 
     @property
     def label(self) -> str:
-        kind = AUDIO_KIND_LABELS.get(self.kind, "")
+        kind = tr(AUDIO_KIND_LABELS.get(self.kind, ""))
         if self.kind == "default" or not kind:
             return self.name
         return f"{self.name} – {kind}"
@@ -166,7 +170,7 @@ class AudioTrack:
     def detail(self) -> str:
         parts = [c for c in self.codecs]
         if self.abr:
-            parts.append(f"max. {self.abr:.0f} kb/s")
+            parts.append(tr("max. {kbps} kb/s").format(kbps=f"{self.abr:.0f}"))
         return " · ".join(parts)
 
 
@@ -192,11 +196,11 @@ class Subtitle:
         if lang.endswith("-orig"):
             lang = lang[:-5]
         name = language_name(lang, self.name or self.language)
-        kind = SUB_KIND_LABELS.get(self.kind, self.kind)
+        kind = tr(SUB_KIND_LABELS.get(self.kind, self.kind))
         if self.kind == "auto" and self.language.endswith("-orig"):
-            kind = "automatikus felirat (eredeti beszéd)"
+            kind = tr("automatikus felirat (eredeti beszéd)")
         if self.kind == "translated" and self.source:
-            kind += f" ({language_name(self.source).lower()} forrásból)"
+            kind += " " + tr("({language} forrásból)").format(language=source_language(self.source))
         return f"{name} – {kind}"
 
 
@@ -303,7 +307,7 @@ class VideoInfo:
         view_count = raw.get("view_count")
         return cls(
             url=url,
-            title=str(raw.get("title") or raw.get("fulltitle") or "Ismeretlen cím"),
+            title=str(raw.get("title") or raw.get("fulltitle") or tr("Ismeretlen cím")),
             duration=duration,
             uploader=str(raw.get("uploader") or raw.get("channel") or raw.get("creator") or ""),
             thumbnail=str(raw.get("thumbnail") or ""),
@@ -465,7 +469,7 @@ class PlaylistInfo:
             vid = str(e.get("id") or "")
             if not link.startswith("http") and vid and str(e.get("ie_key") or "").lower().startswith("youtube"):
                 link = f"https://www.youtube.com/watch?v={vid}"
-            title = str(e.get("title") or vid or f"{i}. elem")
+            title = str(e.get("title") or vid or tr("{n}. elem").format(n=i))
             unavailable = (title in ("[Private video]", "[Deleted video]", "[Unavailable video]")
                            or e.get("availability") in ("private", "needs_auth", "subscriber_only"))
             try:
@@ -476,7 +480,7 @@ class PlaylistInfo:
                                          title, _num(e.get("duration")),
                                          str(e.get("uploader") or e.get("channel") or ""),
                                          not unavailable))
-        return cls(url, str(raw.get("title") or "Lejátszási lista"),
+        return cls(url, str(raw.get("title") or tr("Lejátszási lista")),
                    str(raw.get("uploader") or raw.get("channel") or ""), entries)
 
 
@@ -533,54 +537,54 @@ class DownloadOptions:
     def validate(self, create_dest: bool = True) -> None:
         validate_url(self.url)
         if self.mode not in {"video", "audio", "subtitles"}:
-            raise ValueError("Ismeretlen letöltési mód.")
+            raise ValueError(tr("Ismeretlen letöltési mód."))
         if self.container not in {"mp4", "mkv", "webm"}:
-            raise ValueError("Nem támogatott videóformátum.")
+            raise ValueError(tr("Nem támogatott videóformátum."))
         if self.video_codec not in {"auto", "h264", "vp9", "av1"}:
-            raise ValueError("Nem támogatott videókodek.")
+            raise ValueError(tr("Nem támogatott videókodek."))
         if self.audio_format not in {"mp3", "m4a", "aac", "opus", "flac", "wav", "original"}:
-            raise ValueError("Nem támogatott hangformátum.")
+            raise ValueError(tr("Nem támogatott hangformátum."))
         if self.audio_quality not in {"best", "320", "256", "192", "128"}:
-            raise ValueError("Nem támogatott hangminőség.")
+            raise ValueError(tr("Nem támogatott hangminőség."))
         if self.subtitle_format not in {"srt", "vtt"}:
-            raise ValueError("Nem támogatott feliratformátum.")
+            raise ValueError(tr("Nem támogatott feliratformátum."))
         if self.quality != "best" and not (self.quality.isdigit() and 100 <= int(self.quality) <= 8640):
-            raise ValueError("Érvénytelen videóminőség.")
+            raise ValueError(tr("Érvénytelen videóminőség."))
         if self.cut_method not in {"sections", "full"}:
-            raise ValueError("Ismeretlen vágási módszer.")
+            raise ValueError(tr("Ismeretlen vágási módszer."))
         if self.start is not None and self.start < 0:
-            raise ValueError("A kezdőpont nem lehet negatív.")
+            raise ValueError(tr("A kezdőpont nem lehet negatív."))
         if self.end is not None and self.end <= 0:
-            raise ValueError("A végpontnak nullánál nagyobbnak kell lennie.")
+            raise ValueError(tr("A végpontnak nullánál nagyobbnak kell lennie."))
         if self.start is not None and self.end is not None and self.end - self.start < 0.5:
-            raise ValueError("A végpont legalább fél másodperccel legyen a kezdőpont után.")
+            raise ValueError(tr("A végpont legalább fél másodperccel legyen a kezdőpont után."))
         if self.duration and self.start is not None and self.start >= self.duration:
-            raise ValueError("A kezdőpont a videó hosszán túl van.")
+            raise ValueError(tr("A kezdőpont a videó hosszán túl van."))
         if self.mode == "subtitles" and not self.wants_subtitles:
-            raise ValueError("Csak felirat letöltéséhez jelölj ki legalább egy feliratot.")
+            raise ValueError(tr("Csak felirat letöltéséhez jelölj ki legalább egy feliratot."))
         if len(self.audio_selectors) != len(self.audio_languages):
-            raise ValueError("Belső hiba: a hangsávlista nem egyezik.")
+            raise ValueError(tr("Belső hiba: a hangsávlista nem egyezik."))
         for selector in self.audio_selectors:
             if not re.fullmatch(r"ba(\[[a-z_]+(?:[!*^$~]?=|!\*=)[A-Za-z0-9_.-]+\])*", selector):
-                raise ValueError("Érvénytelen hangsáv-azonosító.")
+                raise ValueError(tr("Érvénytelen hangsáv-azonosító."))
         for lang in [s.language for s in self.subtitles] + self.sub_langs + (
                 [self.preferred_audio_lang] if self.preferred_audio_lang else []):
             if not is_valid_code(lang):
-                raise ValueError("Érvénytelen nyelvkód.")
+                raise ValueError(tr("Érvénytelen nyelvkód."))
         if self.rate_limit and not re.fullmatch(r"\d+(\.\d+)?[KMG]?", self.rate_limit, re.I):
-            raise ValueError("Érvénytelen sebességkorlát (példa: 5M vagy 800K).")
+            raise ValueError(tr("Érvénytelen sebességkorlát (példa: 5M vagy 800K)."))
         if self.info_json and not Path(self.info_json).is_file():
-            raise ValueError("Az elemzés adatai már nem érhetők el; elemezd újra a videót.")
+            raise ValueError(tr("Az elemzés adatai már nem érhetők el; elemezd újra a videót."))
         if self.cookies_browser and not re.fullmatch(r"[a-z]{3,12}", self.cookies_browser):
-            raise ValueError("Érvénytelen böngészőnév.")
+            raise ValueError(tr("Érvénytelen böngészőnév."))
         dest = Path(self.dest)
         if not str(self.dest).strip():
-            raise ValueError("Adj meg mentési mappát.")
+            raise ValueError(tr("Adj meg mentési mappát."))
         if create_dest:
             try:
                 dest.mkdir(parents=True, exist_ok=True)
             except OSError as exc:
-                raise ValueError(f"A mentési mappa nem hozható létre: {exc}") from exc
+                raise ValueError(tr("A mentési mappa nem hozható létre: {error}").format(error=exc)) from exc
 
     def with_changes(self, **kwargs) -> "DownloadOptions":
         return replace(self, **kwargs)
@@ -643,7 +647,7 @@ def _clip_suffix(opts: DownloadOptions) -> str:
     def stamp(value: float) -> str:
         return fmt_time(value).replace(".", ",").replace(":", ".")
     start = stamp(opts.start or 0)
-    end = stamp(opts.end) if opts.end is not None else "vége"
+    end = stamp(opts.end) if opts.end is not None else tr("vége")
     return f" ({start}–{end})"
 
 
@@ -732,7 +736,7 @@ def media_args(opts: DownloadOptions, workdir: Path, tools: Tools | None = None)
     """A fő (videó vagy hang) letöltés argumentumai az ideiglenes munkamappába."""
     opts.validate(create_dest=False)
     if opts.mode == "subtitles":
-        raise ValueError("Csak felirat módban nincs médialetöltés.")
+        raise ValueError(tr("Csak felirat módban nincs médialetöltés."))
     per_language = opts.mode == "audio" and len(opts.audio_selectors) > 1
     args = base_args(tools, opts.cookies_browser, opts.rate_limit) + [
         "--no-playlist", "--no-quiet", "--progress", "--progress-delta", "0.5",
@@ -778,10 +782,10 @@ def subtitle_args(opts: DownloadOptions, workdir: Path, tools: Tools | None = No
     """Feliratletöltés videó nélkül; a nyelvkódok a yt-dlp JSON-jából származnak."""
     opts.validate(create_dest=False)
     if not langs:
-        raise ValueError("Nincs kijelölt felirat.")
+        raise ValueError(tr("Nincs kijelölt felirat."))
     for lang in langs:
         if not is_valid_code(lang):
-            raise ValueError("A felirat nyelvkódja nem támogatott.")
+            raise ValueError(tr("A felirat nyelvkódja nem támogatott."))
     name = output_template(opts).rsplit(".%(ext)s", 1)[0]
     if suffix:
         name += "." + suffix

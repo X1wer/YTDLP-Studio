@@ -215,7 +215,7 @@ class ArgumentTest(unittest.TestCase):
         age = explain("Sign in to confirm your age. This video may be inappropriate for some users.")
         self.assertEqual(age.kind, "login")
         self.assertFalse(age.throttled)
-        self.assertEqual(explain("HTTP Error 403: Forbidden").kind, "")
+        self.assertEqual(explain("HTTP Error 403: Forbidden").kind, "update")
 
     def test_section_open_end(self):
         self.assertEqual(section_arg(DownloadOptions(url=URL, dest=".", start=90)), "*00:01:30-inf")

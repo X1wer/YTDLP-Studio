@@ -23,6 +23,7 @@ THEMES = ("system", "light", "dark")
 CUT_METHODS = ("sections", "full")
 COOKIE_BROWSERS = ("", "firefox", "chrome", "edge", "brave", "opera", "vivaldi", "chromium")
 YTDLP_CHANNELS = ("stable", "nightly")
+LANGUAGES = ("auto", "hu", "en")
 
 
 def app_dir() -> Path:
@@ -105,6 +106,7 @@ def default_download_dir() -> str:
 class Settings:
     destination: str = field(default_factory=default_download_dir)
     theme: str = "system"
+    language: str = "auto"         # auto = a Windows nyelve szerint
     mode: str = "video"
     container: str = "mp4"
     quality: str = "best"           # "best" vagy pl. "1080"
@@ -134,7 +136,7 @@ class Settings:
         "theme": THEMES, "mode": MODES, "container": CONTAINERS, "video_codec": VIDEO_CODECS,
         "audio_format": AUDIO_FORMATS, "audio_quality": AUDIO_QUALITIES,
         "subtitle_format": SUBTITLE_FORMATS, "cut_method": CUT_METHODS,
-        "cookies_browser": COOKIE_BROWSERS, "ytdlp_channel": YTDLP_CHANNELS,
+        "cookies_browser": COOKIE_BROWSERS, "ytdlp_channel": YTDLP_CHANNELS, "language": LANGUAGES,
     }
 
     @staticmethod
@@ -172,7 +174,7 @@ class Settings:
     @classmethod
     def load(cls) -> "Settings":
         try:
-            return cls.from_dict(json.loads(cls.path().read_text(encoding="utf-8")))
+            return cls.from_dict(json.loads(cls.path().read_text(encoding="utf-8-sig")))
         except FileNotFoundError:
             return cls._migrate_v01()
         except (ValueError, OSError):
@@ -183,7 +185,7 @@ class Settings:
         """A v0.1.x a beállításokat közvetlenül az EXE mellé írta."""
         old = app_dir() / "settings.json"
         try:
-            data = json.loads(old.read_text(encoding="utf-8"))
+            data = json.loads(old.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             return cls()
         mapped = {"destination": data.get("destination"), "container": data.get("container"),

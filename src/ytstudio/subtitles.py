@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+from .i18n import tr
 
 _STAMP = re.compile(r"(?:(\d+):)?(\d{1,2}):(\d{2})[,.](\d{1,3})")
 _TIMELINE = re.compile(
@@ -14,7 +15,7 @@ _INLINE_STAMP = re.compile(r"<(\d+:\d{2}:\d{2}\.\d{3})>")
 def stamp_to_ms(value: str) -> int:
     found = _STAMP.fullmatch(value.strip())
     if not found:
-        raise ValueError(f"Ismeretlen feliratidő: {value}")
+        raise ValueError(tr("Ismeretlen feliratidő: {value}").format(value=value))
     hours, mins, secs, millis = found.groups()
     millis = (millis + "00")[:3]
     return (int(hours or 0) * 3600 + int(mins) * 60 + int(secs)) * 1000 + int(millis)
@@ -88,7 +89,7 @@ def trim_file(path: Path, start: float, end: float | None, offset: float = 0.0) 
     """Atomikusan átírja a feliratfájlt; visszaadja a megmaradt feliratok számát."""
     suffix = path.suffix.lower()
     if suffix not in {".srt", ".vtt"}:
-        raise ValueError("Csak SRT és WebVTT fájlok időzítése igazítható.")
+        raise ValueError(tr("Csak SRT és WebVTT fájlok időzítése igazítható."))
     # Bájtként olvas, hogy a hibás CR-CR-LF sorvégek se okozzanak üres sorokat.
     text = path.read_bytes().decode("utf-8-sig", errors="replace").replace("\r\r\n", "\n")
     trimmed = trim_subtitle_text(text, start, end, suffix == ".vtt", offset)

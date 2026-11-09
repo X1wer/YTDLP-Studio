@@ -90,17 +90,70 @@ def base_code(code: str) -> str:
     return (code or "").replace("_", "-").split("-")[0].lower()
 
 
+# Angol felülethez
+NAMES_EN = {
+    "aa": "Afar", "ab": "Abkhazian", "af": "Afrikaans", "ak": "Akan", "am": "Amharic", "ar": "Arabic",
+    "as": "Assamese", "ay": "Aymara", "az": "Azerbaijani", "ba": "Bashkir", "be": "Belarusian",
+    "bg": "Bulgarian", "bho": "Bhojpuri", "bn": "Bangla", "bo": "Tibetan", "br": "Breton", "bs": "Bosnian",
+    "ca": "Catalan", "ceb": "Cebuano", "co": "Corsican", "crs": "Seselwa Creole", "cs": "Czech",
+    "cy": "Welsh", "da": "Danish", "de": "German", "dv": "Divehi", "dz": "Dzongkha", "ee": "Ewe",
+    "el": "Greek", "en": "English", "eo": "Esperanto", "es": "Spanish", "et": "Estonian", "eu": "Basque",
+    "fa": "Persian", "ff": "Fula", "fi": "Finnish", "fil": "Filipino", "fj": "Fijian", "fo": "Faroese",
+    "fr": "French", "fy": "Western Frisian", "ga": "Irish", "gaa": "Ga", "gd": "Scottish Gaelic",
+    "gl": "Galician", "gn": "Guarani", "gu": "Gujarati", "gv": "Manx", "ha": "Hausa", "haw": "Hawaiian",
+    "he": "Hebrew", "iw": "Hebrew", "hi": "Hindi", "hmn": "Hmong", "hr": "Croatian", "ht": "Haitian Creole",
+    "hu": "Hungarian", "hy": "Armenian", "id": "Indonesian", "ig": "Igbo", "is": "Icelandic", "it": "Italian",
+    "iu": "Inuktitut", "ja": "Japanese", "jv": "Javanese", "ka": "Georgian", "kha": "Khasi", "kk": "Kazakh",
+    "kl": "Kalaallisut", "km": "Khmer", "kn": "Kannada", "ko": "Korean", "kri": "Krio", "ku": "Kurdish",
+    "ky": "Kyrgyz", "la": "Latin", "lb": "Luxembourgish", "lg": "Ganda", "ln": "Lingala", "lo": "Lao",
+    "lt": "Lithuanian", "lua": "Luba-Lulua", "luo": "Luo", "lv": "Latvian", "mfe": "Morisyen",
+    "mg": "Malagasy", "mi": "Māori", "mk": "Macedonian", "ml": "Malayalam", "mn": "Mongolian",
+    "mr": "Marathi", "ms": "Malay", "mt": "Maltese", "my": "Burmese", "nb": "Norwegian Bokmål",
+    "ne": "Nepali", "new": "Newari", "nl": "Dutch", "nn": "Norwegian Nynorsk", "no": "Norwegian",
+    "nso": "Northern Sotho", "ny": "Nyanja", "oc": "Occitan", "om": "Oromo", "or": "Odia", "os": "Ossetic",
+    "pa": "Punjabi", "pam": "Pampanga", "pl": "Polish", "ps": "Pashto", "pt": "Portuguese", "qu": "Quechua",
+    "rm": "Romansh", "rn": "Rundi", "ro": "Romanian", "ru": "Russian", "rw": "Kinyarwanda", "sa": "Sanskrit",
+    "sd": "Sindhi", "se": "Northern Sami", "sg": "Sango", "si": "Sinhala", "sk": "Slovak", "sl": "Slovenian",
+    "sm": "Samoan", "sn": "Shona", "so": "Somali", "sq": "Albanian", "sr": "Serbian", "ss": "Swati",
+    "st": "Southern Sotho", "su": "Sundanese", "sv": "Swedish", "sw": "Swahili", "ta": "Tamil",
+    "te": "Telugu", "tg": "Tajik", "th": "Thai", "ti": "Tigrinya", "tk": "Turkmen", "tl": "Tagalog",
+    "tn": "Tswana", "to": "Tongan", "tr": "Turkish", "ts": "Tsonga", "tt": "Tatar", "tum": "Tumbuka",
+    "ug": "Uyghur", "uk": "Ukrainian", "ur": "Urdu", "uz": "Uzbek", "ve": "Venda", "vi": "Vietnamese",
+    "war": "Waray", "wo": "Wolof", "xh": "Xhosa", "yi": "Yiddish", "yo": "Yoruba", "yue": "Cantonese",
+    "zh": "Chinese", "zu": "Zulu",
+}
+
+VARIANTS_EN = {
+    "us": "US", "gb": "UK", "uk": "UK", "au": "Australia", "ca": "Canada", "ie": "Ireland", "in": "India",
+    "nz": "New Zealand", "za": "South Africa", "br": "Brazil", "pt": "Portugal", "es": "Spain",
+    "mx": "Mexico", "419": "Latin America", "ar": "Argentina", "fr": "France", "be": "Belgium",
+    "ch": "Switzerland", "de": "Germany", "at": "Austria", "cn": "China", "tw": "Taiwan", "hk": "Hong Kong",
+    "hans": "Simplified", "hant": "Traditional", "latn": "Latin script", "cyrl": "Cyrillic script",
+    "orig": "original", "it": "Italy", "jp": "Japan", "kr": "Korea", "ru": "Russia", "hu": "Hungary",
+}
+
+
 def language_name(code: str, fallback: str = "") -> str:
-    """Magyar, nagybetűs nyelvnév, pl. ``en-US`` -> ``Angol (USA)``."""
+    """Nagybetűs nyelvnév a felület nyelvén, pl. ``en-US`` -> ``Angol (USA)`` / ``English (US)``."""
+    from .i18n import current, tr
     if not code or code.lower() in {"und", "none", "default"}:
-        return fallback or "Ismeretlen nyelv"
+        return fallback or tr("Ismeretlen nyelv")
+    english = current() == "en"
+    names, variants = (NAMES_EN, VARIANTS_EN) if english else (NAMES, VARIANTS)
     parts = code.replace("_", "-").split("-")
-    name = NAMES.get(parts[0].lower())
+    name = names.get(parts[0].lower())
     if not name:
         return fallback or code
-    extra = [VARIANTS.get(p.lower(), p) for p in parts[1:] if p]
+    extra = [variants.get(p.lower(), p) for p in parts[1:] if p]
     text = name[:1].upper() + name[1:]
     return f"{text} ({', '.join(extra)})" if extra else text
+
+
+def source_language(code: str) -> str:
+    """Nyelvnév mondat belsejébe: magyarul kisbetűvel („angol”), angolul nagybetűvel („English”)."""
+    from .i18n import current
+    name = language_name(code)
+    return name if current() == "en" else name.lower()
 
 
 def to_iso639_2(code: str) -> str | None:
